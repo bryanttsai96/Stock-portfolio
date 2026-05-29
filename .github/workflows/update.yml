@@ -1,0 +1,36 @@
+name: Daily Stock Update
+
+on:
+  schedule:
+    # 18:05 Taiwan time = 10:05 UTC (after TWSE close at 13:30 + Yahoo delay)
+    - cron: '5 10 * * 1-5'
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate dashboard
+        run: python generate.py
+
+      - name: Commit and push index.html
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet || git commit -m "chore: daily stock update $(date -u +'%Y-%m-%d')"
+          git push

@@ -1,0 +1,95 @@
+{
+  "stocks": [
+    {
+      "ticker": "2344",
+      "name": "華邦電子",
+      "type": "main",
+      "sector": "半導體記憶體",
+      "notes": "DRAM/Flash利基型，AI邊緣運算受惠"
+    },
+    {
+      "ticker": "2393",
+      "name": "億光電子",
+      "type": "main",
+      "sector": "LED光電",
+      "notes": "LED封裝龍頭，車用LED成長"
+    },
+    {
+      "ticker": "2408",
+      "name": "南亞科技",
+      "type": "main",
+      "sector": "DRAM",
+      "notes": "DDR5升級換機潮受惠"
+    },
+    {
+      "ticker": "2476",
+      "name": "鉅祥企業",
+      "type": "main",
+      "sector": "連接器",
+      "notes": "AI伺服器高速連接器受益"
+    },
+    {
+      "ticker": "3078",
+      "name": "僑威科技",
+      "type": "main",
+      "sector": "電源供應器",
+      "notes": "AI Server PSU需求帶動"
+    },
+    {
+      "ticker": "6205",
+      "name": "詮欣",
+      "type": "main",
+      "sector": "半導體設備耗材",
+      "notes": "先進製程耗材壁壘高"
+    },
+    {
+      "ticker": "6558",
+      "name": "興能高",
+      "type": "main",
+      "sector": "儲能電池模組",
+      "notes": "台灣儲能市場龍頭"
+    },
+    {
+      "ticker": "2481",
+      "name": "強茂",
+      "type": "watch",
+      "sector": "二極體整流器",
+      "notes": "車用功率元件需求回溫"
+    },
+    {
+      "ticker": "3022",
+      "name": "威強電",
+      "type": "watch",
+      "sector": "工業電腦",
+      "notes": "AIoT工業4.0受益"
+    },
+    {
+      "ticker": "2367",
+      "name": "燿華電子",
+      "type": "watch",
+      "sector": "PCB",
+      "notes": "AI伺服器HDI PCB潛力"
+    },
+    {
+      "ticker": "8050",
+      "name": "廣積科技",
+      "type": "watch",
+      "sector": "工業電腦",
+      "notes": "嵌入式單板電腦，AIoT應用"
+    },
+    {
+      "ticker": "2356",
+      "name": "英業達",
+      "type": "watch",
+      "sector": "伺服器代工",
+      "notes": "AI Server代工受益"
+    },
+    {
+      "ticker": "2369",
+      "name": "菱生精密",
+      "type": "watch",
+      "sector": "IC封裝測試",
+      "notes": "車用IC封測強勁成長"
+    }
+  ]
+}
