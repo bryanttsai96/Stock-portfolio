@@ -267,6 +267,8 @@ html=f'''<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <title>台股AI研究儀表板</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -310,14 +312,14 @@ main{{padding:20px 24px}}
 .tb-cyclical{{background:rgba(210,153,34,.15);color:var(--yellow)}}
 .tb-turnaround{{background:rgba(188,140,255,.15);color:var(--purple)}}
 .tb-dividend,.tb-general{{background:rgba(139,148,158,.15);color:var(--muted)}}
-.sbw{{display:flex;align-items:center;gap:6px}}
-.sb{{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden}}
-.sf{{height:100%;border-radius:3px}}
+.sbw{{display:block;position:relative;border-radius:5px;background:var(--bg3);overflow:hidden;min-width:80px;height:28px}}
+.sb-fill{{position:absolute;top:0;left:0;height:100%;border-radius:5px;opacity:.25;transition:width .3s}}
+.sb-label{{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;height:28px;padding:0 8px}}
 .score-a{{color:var(--green)}}.fill-a{{background:var(--green)}}
 .score-b{{color:var(--blue)}} .fill-b{{background:var(--blue)}}
 .score-c{{color:var(--yellow)}}.fill-c{{background:var(--yellow)}}
 .score-d{{color:var(--red)}}  .fill-d{{background:var(--red)}}
-.sn{{font-size:13px;font-weight:700;min-width:26px}}
+.sn{{font-size:13px;font-weight:700}}.sn-max{{font-size:10px;font-weight:400;opacity:.55}}
 .ch-pos{{color:var(--green)}}.ch-neg{{color:var(--red)}}
 .tag{{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700}}
 .tag-buy{{background:rgba(63,185,80,.2);color:var(--green)}}
@@ -474,7 +476,7 @@ const COL={{growth:'rgba(88,166,255',value:'rgba(63,185,80',cyclical:'rgba(210,1
 function sc(s){{return s>=80?'a':s>=70?'b':s>=60?'c':'d'}}
 function tagHtml(t){{const m={{buy:'買入',watch:'觀望',hold:'持有',avoid:'迴避','—':'—'}};return`<span class="tag tag-${{t}}">${{m[t]||t}}</span>`;}}
 function chHtml(v,p){{return`<span class="ch-${{v>=0?'pos':'neg'}}">${{v>=0?'+':''}}${{v.toFixed(2)}} (${{v>=0?'+':''}}${{p.toFixed(2)}}%)</span>`;}}
-function sBar(s,w,mx){{mx=mx||100;const pct=Math.round(s/mx*100);const c=sc(pct);w=w||80;const lbl=mx===100?`${{s}}`:`${{s}}<span style="color:var(--muted);font-size:10px;font-weight:400;">/${{mx}}</span>`;return`<div class="sbw"><div class="sb" style="width:${{w}}px"><div class="sf fill-${{c}}" style="width:${{pct}}%"></div></div><span class="sn score-${{c}}">${{lbl}}</span></div>`;}}
+function sBar(s,w,mx){{mx=mx||100;const pct=Math.round(s/mx*100);const c=sc(pct);const maxLbl=mx===100?'':`<span class="sn-max">/${{mx}}</span>`;return`<div class="sbw"><div class="sb-fill fill-${{c}}" style="width:${{pct}}%"></div><div class="sb-label"><span class="sn score-${{c}}">${{s}}${{maxLbl}}</span><span class="sn-max score-${{c}}">${{pct}}%</span></div></div>`;}}
 function tBadge(t){{const m={{growth:'成長股',value:'價值股',cyclical:'循環股',turnaround:'轉型股',dividend:'存股型',general:'一般型'}};return`<span class="tbadge tb-${{t}}">${{m[t]||t}}</span>`;}}
 function renderTbody(id,list){{
   const tb=document.getElementById(id);
@@ -482,8 +484,8 @@ function renderTbody(id,list){{
   tb.innerHTML=list.map(s=>`<tr>
     <td><span class="cn">${{s.name}}</span><span class="tic">${{s.ticker}}</span>
         <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">${{tBadge(s.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{s.sector}}</span></div></td>
-    <td>${{sBar(s.ai)}}</td><td>${{sBar(s.fin,70,20)}}</td><td>${{sBar(s.growth_s,70,20)}}</td>
-    <td>${{sBar(s.valuation,70,15)}}</td><td>${{sBar(s.financial,70,15)}}</td><td>${{sBar(s.market,70,10)}}</td>
+    <td>${{sBar(s.ai)}}</td><td>${{sBar(s.fin,0,20)}}</td><td>${{sBar(s.growth_s,0,20)}}</td>
+    <td>${{sBar(s.valuation,0,15)}}</td><td>${{sBar(s.financial,0,15)}}</td><td>${{sBar(s.market,0,10)}}</td>
     <td style="font-weight:600;">NT$${{s.price.toFixed(2)}}</td><td>${{chHtml(s.change,s.changePct)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{s.mktCap}}</td>
     <td>${{tagHtml(s.tag)}}</td><td><button class="drill" onclick="openDetail('${{s.ticker}}')">詳情 →</button></td>
