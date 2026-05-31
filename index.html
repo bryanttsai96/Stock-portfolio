@@ -103,7 +103,7 @@ main{padding:20px 24px}
   <div class="ntab" onclick="show('comparison')">雷達比較</div>
   <div class="ntab" onclick="show('legend')">評分說明</div>
   <div class="spacer"></div>
-  <div style="color:var(--muted);font-size:11px;">更新：2026-06-01 06:53 TST</div>
+  <div style="color:var(--muted);font-size:11px;">更新：2026-06-01 07:06 TST</div>
 </nav>
 <main>
 <div id="p-overview">
@@ -391,7 +391,7 @@ const COL={growth:'rgba(88,166,255',value:'rgba(63,185,80',cyclical:'rgba(210,15
 function sc(s){return s>=80?'a':s>=70?'b':s>=60?'c':'d'}
 function tagHtml(t){const m={buy:'買入',watch:'觀望',hold:'持有',avoid:'迴避','—':'—'};return`<span class="tag tag-${t}">${m[t]||t}</span>`;}
 function chHtml(v,p){return`<span class="ch-${v>=0?'pos':'neg'}">${v>=0?'+':''}${v.toFixed(2)} (${v>=0?'+':''}${p.toFixed(2)}%)</span>`;}
-function sBar(s,w){const c=sc(s);w=w||80;return`<div class="sbw"><div class="sb" style="width:${w}px"><div class="sf fill-${c}" style="width:${s}%"></div></div><span class="sn score-${c}">${s}</span></div>`;}
+function sBar(s,w,mx){mx=mx||100;const pct=Math.round(s/mx*100);const c=sc(pct);w=w||80;return`<div class="sbw"><div class="sb" style="width:${w}px"><div class="sf fill-${c}" style="width:${pct}%"></div></div><span class="sn score-${c}">${s}</span></div>`;}
 function tBadge(t){const m={growth:'成長股',value:'價值股',cyclical:'循環股',turnaround:'轉型股',dividend:'存股型',general:'一般型'};return`<span class="tbadge tb-${t}">${m[t]||t}</span>`;}
 function renderTbody(id,list){
   const tb=document.getElementById(id);
@@ -399,8 +399,8 @@ function renderTbody(id,list){
   tb.innerHTML=list.map(s=>`<tr>
     <td><span class="cn">${s.name}</span><span class="tic">${s.ticker}</span>
         <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">${tBadge(s.stock_type||'general')}&nbsp;<span style="color:var(--muted);font-size:10px;">${s.sector}</span></div></td>
-    <td>${sBar(s.ai)}</td><td>${sBar(s.fin,65)}</td><td>${sBar(s.growth_s,65)}</td>
-    <td>${sBar(s.valuation,65)}</td><td>${sBar(s.financial,65)}</td><td>${sBar(s.market,65)}</td>
+    <td>${sBar(s.ai)}</td><td>${sBar(s.fin,65,20)}</td><td>${sBar(s.growth_s,65,20)}</td>
+    <td>${sBar(s.valuation,65,15)}</td><td>${sBar(s.financial,65,15)}</td><td>${sBar(s.market,65,10)}</td>
     <td style="font-weight:600;">NT$${s.price.toFixed(2)}</td><td>${chHtml(s.change,s.changePct)}</td>
     <td style="color:var(--muted);font-size:12px;">${s.mktCap}</td>
     <td>${tagHtml(s.tag)}</td><td><button class="drill" onclick="openDetail('${s.ticker}')">詳情 →</button></td>
@@ -452,7 +452,7 @@ function openDetail(ticker){
   const dims=[['獲利品質','fin',20,'ROE/毛利率/營業利益率/淨利率'],['成長動能','growth_s',20,'營收成長/EPS成長/前瞻動能'],
               ['估值吸引力','valuation',15,'PE/PB/PEG依股票類型調整'],['財務體質','financial',15,'負債比/流動比率/現金流'],['市場面','market',10,'動能/量能/相對大盤']];
   const dimRows=dims.map(([label,key,max,note])=>{
-    const val=s[key]||0,c=sc(val),pct=Math.round(val/max*100);
+    const val=s[key]||0,pct=Math.round(val/max*100),c=sc(pct);
     return`<div class="sbi"><div class="sbi-label">${label}</div>
       <div class="sbi-bar"><div class="sbi-fill fill-${c}" style="width:${pct}%"></div></div>
       <div class="sbi-score score-${c}">${val}</div><div class="sbi-max">/${max}</div><div class="sbi-note">${note}</div></div>`;
