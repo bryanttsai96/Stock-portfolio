@@ -175,6 +175,19 @@ def score_stock(info, cfg):
     tag="buy" if total>=70 else "watch" if total>=58 else "hold" if total>=45 else "avoid"
     return total,tag,bd
 
+def make_bar(val, max_val):
+    """Generate a fully static HTML bar with inline styles — no JS, no CSS classes."""
+    pct = round(val / max_val * 100) if max_val > 0 else 0
+    if   pct >= 70: rgb,txt = "63,185,80",  "#3fb950"
+    elif pct >= 50: rgb,txt = "88,166,255", "#58a6ff"
+    elif pct >= 30: rgb,txt = "210,153,34", "#d2991f"
+    else:           rgb,txt = "248,81,73",  "#f85149"
+    bg = f"linear-gradient(to right,rgba({rgb},.35) {pct}%,rgba(48,54,61,.55) {pct}%)"
+    max_lbl = f'<span style="font-size:10px;font-weight:400;opacity:.5">/{max_val}</span>' if max_val != 100 else ""
+    pct_lbl = f'<span style="font-size:10px;font-weight:400;opacity:.6"> {pct}%</span>' if max_val != 100 else ""
+    return (f'<div style="background:{bg};border-radius:5px;padding:4px 9px;min-width:85px;display:inline-block;width:100%">'
+            f'<span style="font-size:13px;font-weight:700;color:{txt}">{val}{max_lbl}{pct_lbl}</span></div>')
+
 def fetch_stock(cfg):
     symbol=cfg["ticker"]+".TW"
     try:
@@ -207,6 +220,12 @@ def fetch_stock(cfg):
             "financial":bd["financial"],"market":bd["market"],
             "risk":bd["risk"],"typeAdj":bd["type_adj"],
             "radar":[ai,bd["profit"],bd["growth"],bd["valuation"],bd["financial"],bd["market"]],
+            "ai_bar":     make_bar(ai,               100),
+            "fin_bar":    make_bar(bd["profit"],       20),
+            "growth_bar": make_bar(bd["growth"],       20),
+            "val_bar":    make_bar(bd["valuation"],    15),
+            "financial_bar": make_bar(bd["financial"], 15),
+            "market_bar": make_bar(bd["market"],       10),
             "ok":True,
         }
     except Exception as e:
@@ -214,7 +233,10 @@ def fetch_stock(cfg):
         return {**cfg,"price":0,"change":0,"changePct":0,"mktCap":"—",
                 "pe":0,"pb":0,"roe":0,"eps":0,"div":0,"revGrowth":0,"grossMargin":0,"opMargin":0,
                 "ai":0,"tag":"—","fin":0,"growth_s":0,"valuation":0,"financial":0,"market":0,
-                "risk":0,"typeAdj":0,"radar":[0]*6,"ok":False}
+                "risk":0,"typeAdj":0,"radar":[0]*6,
+                "ai_bar":make_bar(0,100),"fin_bar":make_bar(0,20),"growth_bar":make_bar(0,20),
+                "val_bar":make_bar(0,15),"financial_bar":make_bar(0,15),"market_bar":make_bar(0,10),
+                "ok":False}
 
 print("Fetching stock data...")
 stocks=[]
@@ -487,8 +509,8 @@ function renderTbody(id,list){{
   tb.innerHTML=list.map(s=>`<tr>
     <td><span class="cn">${{s.name}}</span><span class="tic">${{s.ticker}}</span>
         <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">${{tBadge(s.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{s.sector}}</span></div></td>
-    <td>${{sBar(s.ai)}}</td><td>${{sBar(s.fin,0,20)}}</td><td>${{sBar(s.growth_s,0,20)}}</td>
-    <td>${{sBar(s.valuation,0,15)}}</td><td>${{sBar(s.financial,0,15)}}</td><td>${{sBar(s.market,0,10)}}</td>
+    <td>${{s.ai_bar}}</td><td>${{s.fin_bar}}</td><td>${{s.growth_bar}}</td>
+    <td>${{s.val_bar}}</td><td>${{s.financial_bar}}</td><td>${{s.market_bar}}</td>
     <td style="font-weight:600;">NT$${{s.price.toFixed(2)}}</td><td>${{chHtml(s.change,s.changePct)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{s.mktCap}}</td>
     <td>${{tagHtml(s.tag)}}</td><td><button class="drill" onclick="openDetail('${{s.ticker}}')">詳情 →</button></td>
