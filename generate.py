@@ -474,7 +474,7 @@ const COL={{growth:'rgba(88,166,255',value:'rgba(63,185,80',cyclical:'rgba(210,1
 function sc(s){{return s>=80?'a':s>=70?'b':s>=60?'c':'d'}}
 function tagHtml(t){{const m={{buy:'買入',watch:'觀望',hold:'持有',avoid:'迴避','—':'—'}};return`<span class="tag tag-${{t}}">${{m[t]||t}}</span>`;}}
 function chHtml(v,p){{return`<span class="ch-${{v>=0?'pos':'neg'}}">${{v>=0?'+':''}}${{v.toFixed(2)}} (${{v>=0?'+':''}}${{p.toFixed(2)}}%)</span>`;}}
-function sBar(s,w,mx){{mx=mx||100;const pct=Math.round(s/mx*100);const c=sc(pct);w=w||80;return`<div class="sbw"><div class="sb" style="width:${{w}}px"><div class="sf fill-${{c}}" style="width:${{pct}}%"></div></div><span class="sn score-${{c}}">${{s}}</span></div>`;}}
+function sBar(s,w,mx){{mx=mx||100;const pct=Math.round(s/mx*100);const c=sc(pct);w=w||80;const lbl=mx===100?`${{s}}`:`${{s}}<span style="color:var(--muted);font-size:10px;font-weight:400;">/${{mx}}</span>`;return`<div class="sbw"><div class="sb" style="width:${{w}}px"><div class="sf fill-${{c}}" style="width:${{pct}}%"></div></div><span class="sn score-${{c}}">${{lbl}}</span></div>`;}}
 function tBadge(t){{const m={{growth:'成長股',value:'價值股',cyclical:'循環股',turnaround:'轉型股',dividend:'存股型',general:'一般型'}};return`<span class="tbadge tb-${{t}}">${{m[t]||t}}</span>`;}}
 function renderTbody(id,list){{
   const tb=document.getElementById(id);
@@ -482,8 +482,8 @@ function renderTbody(id,list){{
   tb.innerHTML=list.map(s=>`<tr>
     <td><span class="cn">${{s.name}}</span><span class="tic">${{s.ticker}}</span>
         <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">${{tBadge(s.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{s.sector}}</span></div></td>
-    <td>${{sBar(s.ai)}}</td><td>${{sBar(s.fin,65,20)}}</td><td>${{sBar(s.growth_s,65,20)}}</td>
-    <td>${{sBar(s.valuation,65,15)}}</td><td>${{sBar(s.financial,65,15)}}</td><td>${{sBar(s.market,65,10)}}</td>
+    <td>${{sBar(s.ai)}}</td><td>${{sBar(s.fin,70,20)}}</td><td>${{sBar(s.growth_s,70,20)}}</td>
+    <td>${{sBar(s.valuation,70,15)}}</td><td>${{sBar(s.financial,70,15)}}</td><td>${{sBar(s.market,70,10)}}</td>
     <td style="font-weight:600;">NT$${{s.price.toFixed(2)}}</td><td>${{chHtml(s.change,s.changePct)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{s.mktCap}}</td>
     <td>${{tagHtml(s.tag)}}</td><td><button class="drill" onclick="openDetail('${{s.ticker}}')">詳情 →</button></td>
