@@ -176,17 +176,17 @@ def score_stock(info, cfg):
     return total,tag,bd
 
 def make_bar(val, max_val):
-    """Generate a fully static HTML bar with inline styles — no JS, no CSS classes."""
-    pct = round(val / max_val * 100) if max_val > 0 else 0
-    if   pct >= 70: rgb,txt = "63,185,80",  "#3fb950"
-    elif pct >= 50: rgb,txt = "88,166,255", "#58a6ff"
-    elif pct >= 30: rgb,txt = "210,153,34", "#d2991f"
-    else:           rgb,txt = "248,81,73",  "#f85149"
-    bg = f"linear-gradient(to right,rgba({rgb},.35) {pct}%,rgba(48,54,61,.55) {pct}%)"
-    max_lbl = f'<span style="font-size:10px;font-weight:400;opacity:.5">/{max_val}</span>' if max_val != 100 else ""
-    pct_lbl = f'<span style="font-size:10px;font-weight:400;opacity:.6"> {pct}%</span>' if max_val != 100 else ""
-    return (f'<div style="background:{bg};border-radius:5px;padding:4px 9px;min-width:85px;display:inline-block;width:100%">'
-            f'<span style="font-size:13px;font-weight:700;color:{txt}">{val}{max_lbl}{pct_lbl}</span></div>')
+    """Unicode block bar — pure text, zero CSS/JS dependency."""
+    pct  = round(val / max_val * 100) if max_val > 0 else 0
+    fill = round(pct / 10)            # 0-10 filled blocks
+    bar  = "█" * fill + "░" * (10 - fill)
+    if   pct >= 70: col = "#3fb950"   # green
+    elif pct >= 50: col = "#58a6ff"   # blue
+    elif pct >= 30: col = "#d2991f"   # yellow
+    else:           col = "#f85149"   # red
+    lbl  = f"{val}" if max_val == 100 else f"{val}/{max_val}"
+    return (f'<span style="font-family:monospace;letter-spacing:-1px;color:{col}">{bar}</span>'
+            f'&nbsp;<span style="font-weight:700;color:{col}">{lbl}</span>')
 
 def fetch_stock(cfg):
     symbol=cfg["ticker"]+".TW"
