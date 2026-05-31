@@ -1,6 +1,6 @@
 # 台股AI研究儀表板
 
-Live dashboard: https://YOUR-USERNAME.github.io/taiwan-stocks/
+Live dashboard: [https://bryanttsai96.github.io/Stock-portfolio/]
 
 ## Setup (one-time, ~5 minutes)
 
