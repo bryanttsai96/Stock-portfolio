@@ -401,6 +401,7 @@ main{{padding:20px 24px}}
   <div class="ntab active" onclick="show('overview')">總覽</div>
   <div class="ntab" onclick="show('comparison')">雷達比較</div>
   <div class="ntab" onclick="show('legend')">評分說明</div>
+  <div class="ntab" onclick="show('explore')">🔭 探索</div>
   <div class="spacer"></div>
   <div style="position:relative;display:flex;align-items:center;">
     <span style="position:absolute;left:9px;color:var(--muted);font-size:13px;pointer-events:none;">🔍</span>
@@ -507,6 +508,45 @@ main{{padding:20px 24px}}
   </div>
 </div>
 
+<div id="p-explore" style="display:none">
+  <div class="sh"><h2>🔭 探索候選股</h2><span style="color:var(--muted);font-size:12px;">儲存於瀏覽器，不影響 config.json</span></div>
+
+  <!-- search row -->
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+    <div style="position:relative;flex:1;min-width:200px;max-width:360px;">
+      <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;">🔍</span>
+      <input id="ex-srch" type="text" placeholder="代號 / 名稱 / 產業" autocomplete="off"
+        oninput="exFilter(this.value)"
+        style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+               padding:8px 12px 8px 32px;font-size:13px;color:var(--fg);box-sizing:border-box;outline:none;"
+        onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'">
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;" id="ex-sector-btns"></div>
+  </div>
+
+  <!-- candidate universe table -->
+  <div style="overflow-x:auto;margin-bottom:28px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;" id="ex-tbl">
+      <thead><tr style="color:var(--muted);font-size:11px;text-transform:uppercase;border-bottom:1px solid var(--border);">
+        <th style="padding:8px 10px;text-align:left;">代號</th>
+        <th style="padding:8px 10px;text-align:left;">名稱</th>
+        <th style="padding:8px 10px;text-align:left;">產業</th>
+        <th style="padding:8px 10px;text-align:left;">主題</th>
+        <th style="padding:8px 4px;"></th>
+      </tr></thead>
+      <tbody id="ex-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- pinned candidates -->
+  <div class="sh" style="margin-top:4px;">
+    <h2>📌 我的候選清單</h2>
+    <span id="pin-count" style="color:var(--muted);font-size:12px;"></span>
+  </div>
+  <div id="pin-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:20px;"></div>
+  <div id="pin-empty" style="color:var(--muted);font-size:13px;padding:12px 0;display:none;">尚無候選股，從上方搜尋並點擊「加入」。</div>
+</div>
+
 <div id="p-detail" style="display:none">
   <button class="back" onclick="show('overview')">← 返回總覽</button>
   <div id="detail-content" style="margin-top:20px"></div>
@@ -514,6 +554,8 @@ main{{padding:20px 24px}}
 </main>
 <script>
 const stocks={stocks_json};
+// Ticker codes already in portfolio
+const inPortfolio=new Set(stocks.map(s=>s.ticker));
 const COL={{growth:'rgba(88,166,255',value:'rgba(63,185,80',cyclical:'rgba(210,153,34',
             turnaround:'rgba(188,140,255',dividend:'rgba(63,185,80',general:'rgba(139,148,158'}};
 function sc(s){{return s>=70?'a':s>=58?'b':s>=45?'c':'d'}}
@@ -571,10 +613,187 @@ function doSearch(q){{
   if(hit.length===1)openDetail(hit[0].ticker);
 }}
 function show(name){{
-  ['overview','comparison','legend','detail'].forEach(p=>document.getElementById('p-'+p).style.display='none');
+  ['overview','comparison','legend','detail','explore'].forEach(p=>document.getElementById('p-'+p).style.display='none');
   document.getElementById('p-'+name).style.display='block';
-  document.querySelectorAll('.ntab').forEach((t,i)=>t.classList.toggle('active',['overview','comparison','legend'][i]===name));
+  document.querySelectorAll('.ntab').forEach((t,i)=>t.classList.toggle('active',['overview','comparison','legend','explore'][i]===name));
   if(name==='comparison')renderRadar();
+  if(name==='explore')initExplore();
+}}
+
+// ── Explore / Candidate list ──────────────────────────────────────────────
+const UNIVERSE=[
+  // AI / Server
+  {{t:'2330',n:'台積電',s:'晶圓代工',th:'AI旗艦'}},
+  {{t:'2303',n:'聯電',s:'晶圓代工',th:'成熟製程'}},
+  {{t:'2379',n:'瑞昱半導體',s:'IC設計',th:'AI網路'}},
+  {{t:'2454',n:'聯發科',s:'IC設計',th:'AI手機/IoT'}},
+  {{t:'3034',n:'聯詠',s:'IC設計',th:'面板驅動IC'}},
+  {{t:'6770',n:'力積電',s:'晶圓代工',th:'特殊製程'}},
+  {{t:'2337',n:'旺宏電子',s:'Flash記憶體',th:'車用/工控'}},
+  {{t:'3443',n:'創意電子',s:'IC設計服務',th:'ASIC/HPC'}},
+  {{t:'5274',n:'信驊科技',s:'IC設計',th:'BMC/IPMI伺服器'}},
+  {{t:'6669',n:'緯穎科技',s:'伺服器',th:'AI Server'}},
+  {{t:'2382',n:'廣達電腦',s:'伺服器/NB',th:'AI Server ODM'}},
+  {{t:'3231',n:'緯創資通',s:'伺服器/NB',th:'AI Server'}},
+  {{t:'2308',n:'台達電子',s:'電源/散熱',th:'AI Server電源'}},
+  {{t:'3017',n:'奇鋐科技',s:'散熱',th:'AI散熱'}},
+  {{t:'6415',n:'矽力杰',s:'電源IC',th:'AI周邊電源'}},
+  // PCB / 連接器
+  {{t:'2317',n:'鴻海',s:'EMS/組裝',th:'AI Server代工'}},
+  {{t:'3037',n:'欣興電子',s:'PCB',th:'ABF載板'}},
+  {{t:'2cnv',n:'南亞電路板',s:'PCB',th:'高密度PCB'}},
+  {{t:'3044',n:'健鼎科技',s:'PCB',th:'汽車/伺服器PCB'}},
+  {{t:'2cnw',n:'台光電材料',s:'CCL銅箔基板',th:'高頻材料'}},
+  {{t:'6274',n:'台燿科技',s:'CCL銅箔基板',th:'高速傳輸材料'}},
+  {{t:'3481',n:'群創光電',s:'面板',th:'工業/車用顯示'}},
+  // 半導體設備/材料
+  {{t:'3533',n:'嘉澤端子',s:'連接器',th:'AI Server高速連接'}},
+  {{t:'6230',n:'超眾科技',s:'散熱模組',th:'AI液冷'}},
+  {{t:'3059',n:'華晶科技',s:'CMOS感測器',th:'車用相機'}},
+  {{t:'6285',n:'彩晶',s:'面板',th:'小尺寸面板'}},
+  // 電動車/車用
+  {{t:'1590',n:'亞德客',s:'氣動元件',th:'工業自動化'}},
+  {{t:'2027',n:'大成鋼',s:'鋼鐵',th:'再生能源結構材'}},
+  {{t:'2049',n:'上銀科技',s:'精密機械',th:'工業機器人'}},
+  {{t:'1536',n:'和大工業',s:'汽車零件',th:'EV傳動系統'}},
+  {{t:'1216',n:'統一企業',s:'食品飲料',th:'消費防禦'}},
+  {{t:'3529',n:'力旺電子',s:'IP授權',th:'嵌入式記憶體IP'}},
+  {{t:'6550',n:'北極星藥業',s:'生技',th:'腫瘤學'}},
+  // 儲能/綠能
+  {{t:'6505',n:'台塑石化',s:'石化',th:'氫能轉型'}},
+  {{t:'3576',n:'新日光能源',s:'太陽能',th:'太陽能模組'}},
+  {{t:'3230',n:'德元電子',s:'儲能',th:'工業儲能系統'}},
+  {{t:'6409',n:'旭隼科技',s:'儲能電池',th:'磷酸鐵鋰'}},
+  {{t:'1513',n:'中興電',s:'電力設備',th:'電網升級'}},
+  {{t:'1504',n:'東元電機',s:'馬達/電力',th:'EV驅動/節能'}},
+  // 金融
+  {{t:'2884',n:'玉山金控',s:'金融',th:'數位金融'}},
+  {{t:'2882',n:'國泰金控',s:'金融',th:'壽險/資管'}},
+  {{t:'2886',n:'兆豐金控',s:'金融',th:'外匯/貿融'}},
+  // 醫療/生技
+  {{t:'4743',n:'合一生技',s:'生技',th:'新藥開發'}},
+  {{t:'1789',n:'神隆',s:'原料藥',th:'CDMO'}},
+  {{t:'4144',n:'美時化學製藥',s:'學名藥',th:'美國市場'}},
+  // 網通/資安
+  {{t:'2345',n:'智邦科技',s:'網通設備',th:'AI交換器'}},
+  {{t:'3708',n:'上緯投控',s:'複合材料',th:'離岸風電葉片'}},
+  {{t:'6515',n:'穎崴科技',s:'測試座',th:'HPC/AI晶片測試'}},
+  {{t:'6671',n:'三聯科技',s:'UPS',th:'AI機房不斷電'}},
+  {{t:'3042',n:'晶技',s:'石英元件',th:'5G/車用頻率元件'}},
+  {{t:'2230',n:'泰碩電子',s:'散熱',th:'Server散熱模組'}},
+  {{t:'6531',n:'愛普科技',s:'特用化學品',th:'半導體製程材料'}},
+  {{t:'3706',n:'神盾',s:'指紋辨識IC',th:'手機生物辨識'}},
+  {{t:'6239',n:'力成科技',s:'IC封測',th:'HBM/先進封測'}},
+  {{t:'8299',n:'群聯電子',s:'Flash控制IC',th:'AI邊緣儲存'}},
+  {{t:'3714',n:'富采投控',s:'LED',th:'Mini LED背光'}},
+  {{t:'2301',n:'光寶科技',s:'電源/光學',th:'AI Server電源'}},
+  {{t:'3016',n:'嘉晶電子',s:'化合物半導體',th:'GaN/SiC功率'}},
+  {{t:'6669',n:'緯穎科技',s:'伺服器',th:'液冷AI Server'}},
+].filter((v,i,a)=>a.findIndex(x=>x.t===v.t)===i); // deduplicate
+
+let exInited=false;
+let pins=JSON.parse(localStorage.getItem('tw_candidates')||'{{}}');
+
+function savePins(){{localStorage.setItem('tw_candidates',JSON.stringify(pins));}}
+
+function initExplore(){{
+  if(exInited)return;exInited=true;
+  // sector filter chips
+  const sectors=[...new Set(UNIVERSE.map(u=>u.s))].sort();
+  const sb=document.getElementById('ex-sector-btns');
+  const all=document.createElement('button');
+  all.textContent='全部';all.className='fbtn active';all.dataset.sec='';
+  all.onclick=()=>{{document.querySelectorAll('#ex-sector-btns .fbtn').forEach(b=>b.classList.remove('active'));
+    all.classList.add('active');exFilter(document.getElementById('ex-srch').value);}};
+  sb.appendChild(all);
+  sectors.forEach(sec=>{{
+    const b=document.createElement('button');b.textContent=sec;b.className='fbtn';b.dataset.sec=sec;
+    b.onclick=()=>{{document.querySelectorAll('#ex-sector-btns .fbtn').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');exFilter(document.getElementById('ex-srch').value);}};
+    sb.appendChild(b);
+  }});
+  exFilter('');
+  renderPins();
+}}
+
+function exFilter(q){{
+  q=q.trim().toLowerCase();
+  const sec=(document.querySelector('#ex-sector-btns .fbtn.active')||{{}}).dataset?.sec||'';
+  const rows=UNIVERSE.filter(u=>{{
+    if(inPortfolio.has(u.t))return false;
+    if(sec&&u.s!==sec)return false;
+    if(!q)return true;
+    return u.t.includes(q)||u.n.includes(q)||u.s.toLowerCase().includes(q)||u.th.toLowerCase().includes(q);
+  }});
+  const tb=document.getElementById('ex-tbody');
+  if(!rows.length){{tb.innerHTML='<tr><td colspan="5" style="padding:16px;color:var(--muted);text-align:center;">找不到符合條件的股票</td></tr>';return;}}
+  tb.innerHTML=rows.map(u=>{{
+    const pinned=!!pins[u.t];
+    return`<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px 10px;font-weight:600;color:var(--blue);">${{u.t}}</td>
+      <td style="padding:8px 10px;">${{u.n}}</td>
+      <td style="padding:8px 10px;color:var(--muted);font-size:12px;">${{u.s}}</td>
+      <td style="padding:8px 10px;"><span style="background:var(--bg3);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--muted);">${{u.th}}</span></td>
+      <td style="padding:8px 4px;text-align:right;">
+        <button onclick="togglePin('${{u.t}}','${{u.n}}','${{u.s}}','${{u.th}}')"
+          style="padding:4px 12px;border-radius:6px;border:1px solid ${{pinned?'var(--red)':'var(--blue)'}};
+                 background:${{pinned?'rgba(248,81,73,.1)':'rgba(88,166,255,.1)'}};
+                 color:${{pinned?'var(--red)':'var(--blue)'}};font-size:12px;cursor:pointer;">
+          ${{pinned?'✕ 移除':'＋ 加入'}}</button></td></tr>`;
+  }}).join('');
+}}
+
+function togglePin(t,n,s,th){{
+  if(pins[t]){{delete pins[t];}}
+  else{{pins[t]={{n,s,th,note:'',added:new Date().toLocaleDateString('zh-TW')}};}}
+  savePins();renderPins();
+  // refresh table button state
+  exFilter(document.getElementById('ex-srch').value);
+}}
+
+function renderPins(){{
+  const keys=Object.keys(pins);
+  document.getElementById('pin-count').textContent=keys.length?`${{keys.length}} 檔`:'';
+  const el=document.getElementById('pin-list');
+  const empty=document.getElementById('pin-empty');
+  if(!keys.length){{el.innerHTML='';empty.style.display='block';return;}}
+  empty.style.display='none';
+  el.innerHTML=keys.map(t=>{{
+    const p=pins[t];
+    return`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <span style="font-weight:700;color:var(--blue);font-size:15px;">${{t}}</span>
+          <span style="margin-left:8px;font-weight:600;">${{p.n}}</span>
+          <div style="color:var(--muted);font-size:11px;margin-top:2px;">${{p.s}} · ${{p.th}}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="color:var(--muted);font-size:10px;">加入：${{p.added}}</span>
+          <button onclick="removePin('${{t}}')"
+            style="padding:2px 8px;border-radius:5px;border:1px solid var(--border);
+                   background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">✕</button>
+        </div>
+      </div>
+      <textarea placeholder="備註（研究心得、目標價…）"
+        onchange="updateNote('${{t}}',this.value)"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+               padding:6px 8px;font-size:12px;color:var(--text);resize:vertical;min-height:48px;
+               box-sizing:border-box;outline:none;"
+        onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"
+      >${{p.note}}</textarea>
+      <button onclick="copySnippet('${{t}}','${{p.n}}','${{p.s}}')"
+        style="margin-top:8px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);
+               background:transparent;color:var(--muted);font-size:11px;cursor:pointer;width:100%;">
+        📋 複製 config.json 片段</button>
+    </div>`;
+  }}).join('');
+}}
+
+function removePin(t){{delete pins[t];savePins();renderPins();exFilter(document.getElementById('ex-srch').value);}}
+function updateNote(t,v){{if(pins[t]){{pins[t].note=v;savePins();}}}}
+function copySnippet(t,n,s){{
+  const snippet=JSON.stringify({{ticker:t,name:n,type:'watch',sector:s,stock_type:'value',notes:''}},null,2);
+  navigator.clipboard.writeText(snippet).then(()=>alert('已複製！貼入 config.json 的 stocks 陣列，再重新執行 GitHub Actions。'));
 }}
 let radarDone=false;
 function renderRadar(){{
