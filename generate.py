@@ -789,40 +789,39 @@ function scoreStockJS(info,stype){{
 
 async function addToWatch(t,n,s){{
   if(localWatch.find(x=>x.t===t))return;
-  // push loading placeholder immediately
   localWatch.push({{t,n,s,_loading:true}});
   saveLocal(); renderLocalRows();
   toggleAddBox(); document.getElementById('add-srch').value='';
 
   try{{
-    const mods='price,financialData,defaultKeyStatistics,summaryDetail';
-    const url=`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${{t}}.TW?modules=${{mods}}`;
-    const resp=await fetch(url);
-    if(!resp.ok)throw new Error(resp.status);
-    const json=await resp.json();
-    const r=json.quoteSummary?.result?.[0];
-    if(!r)throw new Error('empty');
-    const info={{...r.price,...r.financialData,...r.defaultKeyStatistics,...r.summaryDetail}};
-    const stype='general'; // default; user can't set type from UI
-    const sc=scoreStockJS(info,stype);
-    const price=g(info.regularMarketPrice)||g(info.currentPrice)||0;
-    const chg=g(info.regularMarketChange)||0, chgPct=(g(info.regularMarketChangePercent)||0)*100;
-    const stock={{
-      t,n,s,ticker:t,name:n,sector:s,type:'watch',stock_type:stype,
-      price,change:chg,changePct:chgPct,mktCap:fmtCap(g(info.marketCap)),
-      ai:sc.total,tag:sc.tag,fin:sc.profit,growth_s:sc.growth,
-      valuation:sc.valuation,financial:sc.financial,market:sc.market,
-      risk:sc.risk,typeAdj:sc.typeAdj,
-      ai_bar:makeBarJS(sc.total,100),fin_bar:makeBarJS(sc.profit,20),
-      growth_bar:makeBarJS(sc.growth,20),val_bar:makeBarJS(sc.valuation,15),
-      financial_bar:makeBarJS(sc.financial,15),market_bar:makeBarJS(sc.market,10),
-      ok:true
-    }};
+    // Use TWSE public APIs (CORS-friendly)
+    const [dayResp,valResp]=await Promise.all([
+      fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?stockNo=${{t}}&response=json`),
+      fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json`)
+    ]);
+    const dayData=await dayResp.json();
+    const valData=await valResp.json();
+
+    // STOCK_DAY fields: 日期,成交股數,成交金額,開盤價,最高價,最低價,收盤價,漲跌價差,成交筆數
+    const lastRow=dayData.data?.[dayData.data.length-1];
+    if(!lastRow) throw new Error('no price data');
+    const price=parseFloat(lastRow[6].replace(/,/g,''))||0;
+    const change=parseFloat(lastRow[7].replace(/[+,]/g,''))||0;
+    const changePct=(price>0&&price!==change)?change/(price-change)*100:0;
+
+    // BWIBBU_d fields: 證券代號,證券名稱,收盤價,殖利率(%),股利年度,本益比,股價淨值比,財報年/季
+    const valRow=valData.data?.find(r=>r[0]===t);
+    const pe=valRow?parseFloat(valRow[5])||0:0;
+    const pb=valRow?parseFloat(valRow[6])||0:0;
+    const div=valRow?parseFloat(valRow[3])||0:0;
+
+    const stock={{t,n,s,ticker:t,name:n,sector:s,
+      price,change,changePct,pe,pb,div,_partial:true}};
     const idx=localWatch.findIndex(x=>x.t===t);
     if(idx>=0)localWatch[idx]=stock; else localWatch.push(stock);
   }}catch(e){{
     const idx=localWatch.findIndex(x=>x.t===t);
-    if(idx>=0)localWatch[idx]={{t,n,s,_failed:true}};
+    if(idx>=0)localWatch[idx]={{t,n,s,_failed:true,_err:e.message}};
   }}
   saveLocal(); renderLocalRows();
 }}
@@ -833,24 +832,52 @@ function removeLocal(t){{
 }}
 
 function localRowHtml(u){{
+  const rmBtn=(t)=>`<button onclick="removeLocal('${{t}}')" style="padding:4px 10px;border-radius:5px;
+    border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button>`;
+  const emptyBar=(w,h,r)=>`<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+    <div style="width:${{w}}px;height:${{h}}px;border-radius:${{r}}px;background:#30363d;flex-shrink:0;opacity:.4;"></div>
+    <span style="color:var(--muted);font-size:11px;">-</span></div>`;
+  const metricCell=(label,val,unit)=>val?
+    `<div style="display:flex;align-items:center;gap:4px;white-space:nowrap;">
+      <span style="color:var(--muted);font-size:10px;">${{label}}</span>
+      <span style="font-size:12px;font-weight:600;color:#c9d1d9;">${{val}}${{unit}}</span></div>`:
+    emptyBar(50,4,2);
+
   if(u._loading) return`<tr>
     <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span>
       <div style="margin-top:3px;color:var(--muted);font-size:10px;">${{u.s}}</div></td>
     <td colspan="10" style="color:var(--muted);font-size:12px;padding-left:12px;">
-      ⏳ 正在取得資料...</td>
-    <td><button onclick="removeLocal('${{u.t}}')" style="padding:3px 10px;border-radius:5px;
-      border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button></td>
-  </tr>`;
+      ⏳ 正在取得市場資料...</td>
+    <td>${{rmBtn(u.t)}}</td></tr>`;
+
   if(u._failed) return`<tr>
-    <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span></td>
-    <td colspan="9" style="color:var(--muted);font-size:12px;padding-left:12px;">
-      ⚠ 資料取得失敗&nbsp;
-      <a href="https://tw.finance.yahoo.com/quote/${{u.t}}.TW" target="_blank"
-         style="color:var(--blue);text-decoration:none;">Yahoo ↗</a></td>
-    <td colspan="2"><button onclick="removeLocal('${{u.t}}')" style="padding:3px 10px;border-radius:5px;
-      border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button></td>
-  </tr>`;
-  // full scored row — reuse same template as renderTbody
+    <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span>
+      <div style="margin-top:3px;color:var(--muted);font-size:10px;">${{u.s}}</div></td>
+    <td colspan="10" style="color:#f85149;font-size:12px;padding-left:12px;">
+      ⚠ 無法取得資料（請確認股票代碼）</td>
+    <td>${{rmBtn(u.t)}}</td></tr>`;
+
+  if(u._partial) return`<tr>
+    <td><span class="cn">${{u.name}}</span><span class="tic">${{u.ticker}}</span>
+      <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
+        <span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;
+          font-size:10px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span>
+        <span style="color:var(--muted);font-size:10px;">${{u.sector}}</span>
+      </div></td>
+    <td>${{emptyBar(68,6,3)}}</td>
+    <td>${{emptyBar(50,4,2)}}</td>
+    <td>${{emptyBar(50,4,2)}}</td>
+    <td>${{metricCell('本益比',u.pe?u.pe.toFixed(1):null,'')}}</td>
+    <td>${{metricCell('淨值比',u.pb?u.pb.toFixed(2):null,'x')}}</td>
+    <td>${{metricCell('殖利率',u.div?u.div.toFixed(1):null,'%')}}</td>
+    <td style="font-weight:600;">${{u.price?'NT$'+u.price.toFixed(2):'-'}}</td>
+    <td>${{u.price?chHtml(u.change,u.changePct):'-'}}</td>
+    <td style="color:var(--muted);font-size:12px;">-</td>
+    <td><span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;
+      font-size:11px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span></td>
+    <td>${{rmBtn(u.ticker)}}</td></tr>`;
+
+  // full scored row (legacy — kept for any old localStorage entries)
   return`<tr>
     <td><span class="cn">${{u.name}}</span><span class="tic">${{u.ticker}}</span>
       <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
@@ -860,11 +887,9 @@ function localRowHtml(u){{
     <td>${{u.val_bar}}</td><td>${{u.financial_bar}}</td><td>${{u.market_bar}}</td>
     <td style="font-weight:600;">NT$${{u.price.toFixed(2)}}</td>
     <td>${{chHtml(u.change,u.changePct)}}</td>
-    <td style="color:var(--muted);font-size:12px;">${{u.mktCap}}</td>
+    <td style="color:var(--muted);font-size:12px;">${{u.mktCap||'-'}}</td>
     <td>${{tagHtml(u.tag)}}</td>
-    <td><button onclick="removeLocal('${{u.ticker}}')" style="padding:4px 10px;border-radius:5px;
-      border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button></td>
-  </tr>`;
+    <td>${{rmBtn(u.ticker)}}</td></tr>`;
 }}
 
 function renderLocalRows(){{
