@@ -178,10 +178,10 @@ def score_stock(info, cfg):
 def make_bar(val, max_val):
     """Inline CSS progress bar — slim, rounded, colour-coded by proportion."""
     pct = round(val / max_val * 100) if max_val > 0 else 0
-    if   pct >= 70: col = "#3fb950"   # green
-    elif pct >= 50: col = "#58a6ff"   # blue
-    elif pct >= 30: col = "#d2991f"   # yellow
-    else:           col = "#f85149"   # red
+    if   pct >= 70: col = "#3fb950"   # green  (≥70 = buy)
+    elif pct >= 58: col = "#58a6ff"   # blue   (58-69 = watch)
+    elif pct >= 45: col = "#d2991f"   # yellow (45-57 = hold)
+    else:           col = "#f85149"   # red    (<45  = avoid)
     lbl = f"{val}" if max_val == 100 else f"{val}/{max_val}"
     bw  = 68 if max_val == 100 else 50   # bar width px
     bh  = 6  if max_val == 100 else 4    # bar height px
@@ -355,8 +355,8 @@ main{{padding:20px 24px}}
 .ch-pos{{color:var(--green)}}.ch-neg{{color:var(--red)}}
 .tag{{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700}}
 .tag-buy{{background:rgba(63,185,80,.2);color:var(--green)}}
-.tag-watch{{background:rgba(210,153,34,.2);color:var(--yellow)}}
-.tag-hold{{background:rgba(88,166,255,.2);color:var(--blue)}}
+.tag-watch{{background:rgba(88,166,255,.2);color:var(--blue)}}
+.tag-hold{{background:rgba(210,153,34,.2);color:var(--yellow)}}
 .tag-avoid{{background:rgba(248,81,73,.2);color:var(--red)}}
 .drill{{padding:4px 10px;border-radius:5px;border:1px solid var(--border);
         background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s}}
@@ -408,8 +408,8 @@ main{{padding:20px 24px}}
 <div id="p-overview">
   <div class="tleg">
     <div class="tleg-i"><div class="tdot" style="background:var(--green)"></div>≥70 買入</div>
-    <div class="tleg-i"><div class="tdot" style="background:var(--yellow)"></div>58–69 觀望</div>
-    <div class="tleg-i"><div class="tdot" style="background:var(--blue)"></div>45–57 持有</div>
+    <div class="tleg-i"><div class="tdot" style="background:var(--blue)"></div>58–69 觀望</div>
+    <div class="tleg-i"><div class="tdot" style="background:var(--yellow)"></div>45–57 持有</div>
     <div class="tleg-i"><div class="tdot" style="background:var(--red)"></div>&lt;45 迴避</div>
     <div class="tleg-i" style="margin-left:10px;padding-left:10px;border-left:1px solid var(--border);">
       <span class="tbadge tb-growth">成長股</span>&nbsp;
@@ -424,8 +424,8 @@ main{{padding:20px 24px}}
     <button class="fbtn" onclick="filt('main',this)">主要持股</button>
     <button class="fbtn" onclick="filt('watch',this)">觀望清單</button>
     <button class="fbtn" onclick="filt('buy',this)">🟢 買入 ≥70</button>
-    <button class="fbtn" onclick="filt('wtag',this)">🟡 觀望 58-69</button>
-    <button class="fbtn" onclick="filt('hold',this)">🔵 持有/迴避</button>
+    <button class="fbtn" onclick="filt('wtag',this)">🔵 觀望 58-69</button>
+    <button class="fbtn" onclick="filt('hold',this)">🟡 持有/迴避</button>
     <span style="margin-left:auto;color:var(--muted);font-size:12px;">點擊「詳情」查看評分細項</span>
   </div>
   <div class="sh"><h2>主要持股</h2><span class="badge bm">{len(main_s)} 檔</span></div>
@@ -505,7 +505,7 @@ main{{padding:20px 24px}}
 const stocks={stocks_json};
 const COL={{growth:'rgba(88,166,255',value:'rgba(63,185,80',cyclical:'rgba(210,153,34',
             turnaround:'rgba(188,140,255',dividend:'rgba(63,185,80',general:'rgba(139,148,158'}};
-function sc(s){{return s>=80?'a':s>=70?'b':s>=60?'c':'d'}}
+function sc(s){{return s>=70?'a':s>=58?'b':s>=45?'c':'d'}}
 function tagHtml(t){{const m={{buy:'買入',watch:'觀望',hold:'持有',avoid:'迴避','—':'—'}};return`<span class="tag tag-${{t}}">${{m[t]||t}}</span>`;}}
 function chHtml(v,p){{return`<span class="ch-${{v>=0?'pos':'neg'}}">${{v>=0?'+':''}}${{v.toFixed(2)}} (${{v>=0?'+':''}}${{p.toFixed(2)}}%)</span>`;}}
 function sBar(s,w,mx){{
