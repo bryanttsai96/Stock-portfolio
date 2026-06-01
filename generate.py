@@ -402,7 +402,18 @@ main{{padding:20px 24px}}
   <div class="ntab" onclick="show('comparison')">雷達比較</div>
   <div class="ntab" onclick="show('legend')">評分說明</div>
   <div class="spacer"></div>
-  <div style="color:var(--muted);font-size:11px;">更新：{updated_at}</div>
+  <div style="position:relative;display:flex;align-items:center;">
+    <span style="position:absolute;left:9px;color:var(--muted);font-size:13px;pointer-events:none;">🔍</span>
+    <input id="srch" type="text" placeholder="代號 / 名稱" autocomplete="off"
+      oninput="doSearch(this.value)"
+      onkeydown="if(event.key==='Escape'){{this.value='';doSearch('')}}"
+      style="background:var(--bg);border:1px solid var(--border);border-radius:20px;
+             padding:5px 12px 5px 28px;font-size:12px;color:var(--fg);width:160px;
+             outline:none;transition:border-color .15s;"
+      onfocus="this.style.borderColor='var(--blue)'"
+      onblur="this.style.borderColor='var(--border)'">
+  </div>
+  <div style="color:var(--muted);font-size:11px;margin-left:14px;">更新：{updated_at}</div>
 </nav>
 <main>
 <div id="p-overview">
@@ -533,12 +544,31 @@ function renderTbody(id,list){{
 }}
 function filt(type,btn){{
   document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  document.getElementById('srch').value='';
   let m=stocks.filter(s=>s.type==='main'),w=stocks.filter(s=>s.type==='watch');
   if(type==='main') w=[];else if(type==='watch') m=[];
   else if(type==='buy'){{m=m.filter(s=>s.tag==='buy');w=w.filter(s=>s.tag==='buy');}}
   else if(type==='wtag'){{m=m.filter(s=>s.tag==='watch');w=w.filter(s=>s.tag==='watch');}}
   else if(type==='hold'){{m=m.filter(s=>s.tag==='hold'||s.tag==='avoid');w=w.filter(s=>s.tag==='hold'||s.tag==='avoid');}}
   renderTbody('tb-main',m);renderTbody('tb-watch',w);
+}}
+function doSearch(q){{
+  q=q.trim().toLowerCase();
+  if(!q){{
+    // restore active filter
+    const active=document.querySelector('.fbtn.active');
+    if(active){{active.click();return;}}
+    renderTbody('tb-main',stocks.filter(s=>s.type==='main'));
+    renderTbody('tb-watch',stocks.filter(s=>s.type==='watch'));
+    return;
+  }}
+  // deactivate filter buttons while searching
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+  const hit=stocks.filter(s=>s.ticker.includes(q)||s.name.toLowerCase().includes(q)||s.sector.toLowerCase().includes(q));
+  renderTbody('tb-main',hit.filter(s=>s.type==='main'));
+  renderTbody('tb-watch',hit.filter(s=>s.type==='watch'));
+  // if exactly one match, auto-open detail
+  if(hit.length===1)openDetail(hit[0].ticker);
 }}
 function show(name){{
   ['overview','comparison','legend','detail'].forEach(p=>document.getElementById('p-'+p).style.display='none');
