@@ -669,13 +669,162 @@ function addFilter(q){{
   res.innerHTML=html;
 }}
 
-function addToWatch(t,n,s){{
+// ── JS helpers mirroring Python functions ────────────────────────────────
+function makeBarJS(val,mx){{
+  const pct=mx>0?Math.round(val/mx*100):0;
+  const col=pct>=70?'#3fb950':pct>=58?'#58a6ff':pct>=45?'#d2991f':'#f85149';
+  const lbl=mx===100?`${{val}}`:`${{val}}/${{mx}}`;
+  const bw=mx===100?68:50,bh=mx===100?6:4,br=mx===100?3:2;
+  const fs=mx===100?'13px':'11px',fw=mx===100?'700':'600';
+  return `<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">`
+    +`<div style="width:${{bw}}px;height:${{bh}}px;border-radius:${{br}}px;background:#30363d;overflow:hidden;flex-shrink:0;">`
+    +`<div style="width:${{pct}}%;height:100%;background:${{col}};border-radius:${{br}}px;"></div></div>`
+    +`<span style="color:${{col}};font-size:${{fs}};font-weight:${{fw}};min-width:28px;">${{lbl}}</span></div>`;
+}}
+function fmtCap(v){{
+  if(!v)return'—';
+  if(v>=1e12)return(v/1e12).toFixed(1)+'兆';
+  if(v>=1e8)return Math.round(v/1e8)+'億';
+  return Math.round(v/1e4)+'萬';
+}}
+function g(o){{return o?.raw??o??0;}}  // unwrap Yahoo {{raw:x}} or plain value
+
+function scoreStockJS(info,stype){{
+  stype=stype||'general';
+  const roe=g(info.returnOnEquity)*100, grossM=g(info.grossMargins)*100;
+  const opM=g(info.operatingMargins)*100, netM=g(info.profitMargins)*100;
+  const revGr=g(info.revenueGrowth)*100, earnGr=g(info.earningsGrowth)*100;
+  const tPE=g(info.trailingPE), fPE=g(info.forwardPE), pb=g(info.priceToBook);
+  let peg=g(info.pegRatio);
+  const debtEq=g(info.debtToEquity), currR=g(info.currentRatio);
+  const fcf=g(info.freeCashflow), opCF=g(info.operatingCashflow);
+  const tCash=g(info.totalCash), tDebt=g(info.totalDebt);
+  const beta=g(info.beta)||1, w52c=g(info['52WeekChange']), sp52c=g(info.SandP52WeekChange);
+  const vol=g(info.regularMarketVolume), avgVol=g(info.averageVolume)||1;
+  const price=g(info.regularMarketPrice)||g(info.currentPrice);
+  const w52Hi=g(info.fiftyTwoWeekHigh)||price, w52Lo=g(info.fiftyTwoWeekLow)||price;
+  const dy=g(info.dividendYield), divY=Math.min(dy>1?dy:dy*100,25);
+  const peak=stype==='cyclical'&&roe>20&&grossM>30;
+
+  // 1. 獲利品質 (0-20)
+  let p=0;
+  p+=stype==='growth'?(roe>=15?6:roe>=10?4:roe>=7?2:roe>0?1:0):(roe>=20?6:roe>=15?4:roe>=10?2:roe>0?1:0);
+  p+=grossM>=35?6:grossM>=25?4:grossM>=15?2:grossM>0?1:0;
+  p+=opM>=15?5:opM>=10?3:opM>=5?1:0;
+  p+=netM>=10?3:netM>=5?2:netM>0?1:0;
+  if(peak)p=Math.round(p*0.70);
+  if(stype==='turnaround'&&opM>0&&grossM>15)p=Math.min(20,p+2);
+  p=Math.min(20,Math.max(0,p));
+
+  // 2. 成長動能 (0-20)
+  let gx=0; const rvMax=stype==='growth'?9:8;
+  gx+=revGr>=30?rvMax:revGr>=20?Math.round(rvMax*.78):revGr>=10?Math.round(rvMax*.5):revGr>=5?Math.round(rvMax*.25):revGr>=0?1:(revGr>=-8&&(stype==='value'||stype==='dividend'))?1:0;
+  gx+=earnGr>=30?7:earnGr>=15?5:earnGr>=5?4:earnGr>=0?1:0;
+  if(fPE>0&&tPE>0){{const imp=(tPE-fPE)/tPE*100;gx+=imp>=20?4:imp>=10?3:imp>=0?2:0;}}
+  else gx+=revGr>=25&&earnGr>=0?4:revGr>=15&&earnGr>=0?3:revGr>=10?2:revGr>=0?1:0;
+  if(peak)gx=Math.round(gx*0.70);
+  if(stype==='turnaround'&&revGr>0)gx=Math.min(20,gx+2);
+  gx=Math.min(20,Math.max(0,gx));
+
+  // 3. 估值吸引力 (0-15)
+  let v=0;
+  if(peg>10||peg<0)peg=0;
+  if(peg<=0&&revGr>0)peg=fPE>0?fPE/revGr:tPE>0?tPE/revGr:0;
+  if(stype==='growth'){{
+    v+=tPE>0&&tPE<=20?5:tPE<=30?4:tPE<=40?3:tPE<=55?1:0;
+    v+=pb>0&&pb<=2?4:pb<=4?3:pb<=6?1:0;
+    v+=peg>0&&peg<1?6:peg<1.5?4:peg<2?2:0;
+  }}else if(stype==='dividend'){{
+    v+=divY>=6?7:divY>=4?5:divY>=3?3:divY>=1.5?1:0;
+    v+=tPE>0&&tPE<=12?4:tPE<=18?3:tPE<=25?2:tPE<=35?1:0;
+    v+=pb>0&&pb<=1.5?4:pb<=2.5?2:0;
+  }}else if(stype==='cyclical'){{
+    const peV=fPE>0?fPE:tPE, pegV=peV>0&&revGr>0?peV/revGr:0;
+    v+=pb>0&&pb<=1?6:pb<=1.5?5:pb<=2.5?3:pb<=4?1:0;
+    v+=peV>0&&peV<=8?5:peV<=12?3:peV<=18?2:peV<=25?1:0;
+    v+=pegV>0&&pegV<1?4:pegV<1.5?2:0;
+  }}else if(stype==='turnaround'){{
+    v+=pb>0&&pb<=1?7:pb<=1.5?5:pb<=2.5?3:pb<=4?1:0;
+    v+=tPE>0&&tPE<=15?5:tPE<=25?3:tPE<=40?1:0;
+    v+=peg>0&&peg<1.5?3:0;
+  }}else{{
+    v+=tPE>0&&tPE<=12?5:tPE<=18?3:tPE<=25?2:tPE<=35?1:0;
+    v+=pb>0&&pb<=1?5:pb<=1.5?3:pb<=2.5?2:pb<=4?1:0;
+    v+=peg>0&&peg<1?5:peg<1.5?3:peg<2?1:0;
+  }}
+  v=Math.min(15,Math.max(0,v));
+
+  // 4. 財務體質 (0-15)
+  let f=0;
+  f+=debtEq<=30?4:debtEq<=60?3:debtEq<=100?2:1;
+  f+=currR>=2.5?3:currR>=1.5?2:currR>=1?1:0;
+  f+=fcf>0&&opCF>0?4:opCF>0?2:0;
+  f+=tDebt>0&&tCash>=tDebt*1.5?4:tCash>tDebt?2:0;
+  f=Math.min(15,Math.max(0,f));
+
+  // 5. 市場面 (0-10)
+  let m=0;
+  const rng=w52Hi>w52Lo?(price-w52Lo)/(w52Hi-w52Lo):0;
+  m+=rng>=.75?3:rng>=.5?2:rng>=.25?1:0;
+  m+=(beta>=.5&&beta<=1.3)?2:1;
+  const vr=vol/avgVol; m+=vr>=2?3:vr>=1.3?2:vr>=.8?1:0;
+  m+=(w52c-sp52c)>=.1?2:(w52c-sp52c)>=0?1:0;
+  m=Math.min(10,Math.max(0,m));
+
+  // 6. 風險 + 7. 類型加成
+  let r=0;
+  if(peak)r-=4; else if(tPE>50&&revGr<15&&stype!=='cyclical')r-=2;
+  if(debtEq>200)r-=3; else if(debtEq>150)r-=2;
+  if(pb>8&&tPE>60)r-=2; if(beta>1.8)r-=1;
+  r=Math.max(-10,r);
+  let ta=0;
+  if(stype==='growth'&&roe>=15&&revGr>=15&&grossM>=30)ta=earnGr>=25?5:3;
+  else if(stype==='turnaround'&&opM>0&&revGr>0&&pb<=2)ta=4;
+  else if(stype==='dividend'&&divY>=4&&debtEq<=80&&opCF>0)ta=divY>=6?3:1;
+
+  const total=Math.min(100,Math.max(0,p+gx+v+f+m+r+ta));
+  const tag=total>=70?'buy':total>=58?'watch':total>=45?'hold':'avoid';
+  return {{profit:p,growth:gx,valuation:v,financial:f,market:m,risk:r,typeAdj:ta,total,tag}};
+}}
+
+async function addToWatch(t,n,s){{
   if(localWatch.find(x=>x.t===t))return;
-  localWatch.push({{t,n,s}});
-  saveLocal();
-  renderLocalRows();
-  toggleAddBox();
-  document.getElementById('add-srch').value='';
+  // push loading placeholder immediately
+  localWatch.push({{t,n,s,_loading:true}});
+  saveLocal(); renderLocalRows();
+  toggleAddBox(); document.getElementById('add-srch').value='';
+
+  try{{
+    const mods='price,financialData,defaultKeyStatistics,summaryDetail';
+    const url=`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${{t}}.TW?modules=${{mods}}`;
+    const resp=await fetch(url);
+    if(!resp.ok)throw new Error(resp.status);
+    const json=await resp.json();
+    const r=json.quoteSummary?.result?.[0];
+    if(!r)throw new Error('empty');
+    const info={{...r.price,...r.financialData,...r.defaultKeyStatistics,...r.summaryDetail}};
+    const stype='general'; // default; user can't set type from UI
+    const sc=scoreStockJS(info,stype);
+    const price=g(info.regularMarketPrice)||g(info.currentPrice)||0;
+    const chg=g(info.regularMarketChange)||0, chgPct=(g(info.regularMarketChangePercent)||0)*100;
+    const stock={{
+      t,n,s,ticker:t,name:n,sector:s,type:'watch',stock_type:stype,
+      price,change:chg,changePct:chgPct,mktCap:fmtCap(g(info.marketCap)),
+      ai:sc.total,tag:sc.tag,fin:sc.profit,growth_s:sc.growth,
+      valuation:sc.valuation,financial:sc.financial,market:sc.market,
+      risk:sc.risk,typeAdj:sc.typeAdj,
+      ai_bar:makeBarJS(sc.total,100),fin_bar:makeBarJS(sc.profit,20),
+      growth_bar:makeBarJS(sc.growth,20),val_bar:makeBarJS(sc.valuation,15),
+      financial_bar:makeBarJS(sc.financial,15),market_bar:makeBarJS(sc.market,10),
+      ok:true
+    }};
+    const idx=localWatch.findIndex(x=>x.t===t);
+    if(idx>=0)localWatch[idx]=stock; else localWatch.push(stock);
+  }}catch(e){{
+    const idx=localWatch.findIndex(x=>x.t===t);
+    if(idx>=0)localWatch[idx]={{t,n,s,_failed:true}};
+  }}
+  saveLocal(); renderLocalRows();
 }}
 
 function removeLocal(t){{
@@ -683,25 +832,48 @@ function removeLocal(t){{
   saveLocal();renderLocalRows();
 }}
 
+function localRowHtml(u){{
+  if(u._loading) return`<tr>
+    <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span>
+      <div style="margin-top:3px;color:var(--muted);font-size:10px;">${{u.s}}</div></td>
+    <td colspan="10" style="color:var(--muted);font-size:12px;padding-left:12px;">
+      ⏳ 正在取得資料...</td>
+    <td><button onclick="removeLocal('${{u.t}}')" style="padding:3px 10px;border-radius:5px;
+      border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button></td>
+  </tr>`;
+  if(u._failed) return`<tr>
+    <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span></td>
+    <td colspan="9" style="color:var(--muted);font-size:12px;padding-left:12px;">
+      ⚠ 資料取得失敗&nbsp;
+      <a href="https://tw.finance.yahoo.com/quote/${{u.t}}.TW" target="_blank"
+         style="color:var(--blue);text-decoration:none;">Yahoo ↗</a></td>
+    <td colspan="2"><button onclick="removeLocal('${{u.t}}')" style="padding:3px 10px;border-radius:5px;
+      border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button></td>
+  </tr>`;
+  // full scored row — reuse same template as renderTbody
+  return`<tr>
+    <td><span class="cn">${{u.name}}</span><span class="tic">${{u.ticker}}</span>
+      <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
+        ${{tBadge(u.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{u.sector}}</span>
+      </div></td>
+    <td>${{u.ai_bar}}</td><td>${{u.fin_bar}}</td><td>${{u.growth_bar}}</td>
+    <td>${{u.val_bar}}</td><td>${{u.financial_bar}}</td><td>${{u.market_bar}}</td>
+    <td style="font-weight:600;">NT$${{u.price.toFixed(2)}}</td>
+    <td>${{chHtml(u.change,u.changePct)}}</td>
+    <td style="color:var(--muted);font-size:12px;">${{u.mktCap}}</td>
+    <td>${{tagHtml(u.tag)}}</td>
+    <td><button onclick="removeLocal('${{u.ticker}}')" style="padding:4px 10px;border-radius:5px;
+      border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button></td>
+  </tr>`;
+}}
+
 function renderLocalRows(){{
   const tb=document.getElementById('tb-local');
   if(!localWatch.length){{tb.innerHTML='';return;}}
-  tb.innerHTML=`<tr><td colspan="12"
-    style="padding:6px 12px;background:rgba(88,166,255,.06);color:var(--muted);
-           font-size:11px;border-top:2px solid rgba(88,166,255,.3);">
-    ▸ 候選中（本機儲存，待加入 config.json 後取得 AI 評分）</td></tr>`
-  +localWatch.map(u=>`<tr style="opacity:.85;">
-    <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span>
-        <div style="margin-top:3px;"><span style="color:var(--muted);font-size:10px;">${{u.s}}</span></div></td>
-    <td colspan="6" style="color:var(--muted);font-size:12px;text-align:center;">
-      待加入 config.json 後自動評分</td>
-    <td colspan="4" style="color:var(--muted);font-size:12px;">
-      <a href="https://tw.finance.yahoo.com/quote/${{u.t}}.TW" target="_blank"
-         style="color:var(--blue);text-decoration:none;">查看行情 ↗</a></td>
-    <td><button onclick="removeLocal('${{u.t}}')"
-      style="padding:3px 10px;border-radius:5px;border:1px solid var(--border);
-             background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button></td>
-  </tr>`).join('');
+  tb.innerHTML=`<tr><td colspan="12" style="padding:6px 12px;background:rgba(88,166,255,.06);
+    color:var(--muted);font-size:11px;border-top:2px solid rgba(88,166,255,.3);">
+    ▸ 候選中（本機儲存）</td></tr>`
+  +localWatch.map(localRowHtml).join('');
 }}
 let radarDone=false;
 function renderRadar(){{
