@@ -794,34 +794,137 @@ async function addToWatch(t,n,s){{
   toggleAddBox(); document.getElementById('add-srch').value='';
 
   try{{
-    // Use TWSE public APIs (CORS-friendly)
-    const [dayResp,valResp]=await Promise.all([
-      fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?stockNo=${{t}}&response=json`),
-      fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json`)
+    // Fetch all data in parallel: TWSE for price/valuation + Finmind for fundamentals
+    const start2y='2022-01-01';
+    const [dayData,valData,fsData,bsData,cfData]=await Promise.all([
+      fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?stockNo=${{t}}&response=json`).then(r=>r.json()),
+      fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json`).then(r=>r.json()),
+      fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockFinancialStatements&data_id=${{t}}&start_date=${{start2y}}`).then(r=>r.json()),
+      fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockBalanceSheet&data_id=${{t}}&start_date=${{start2y}}`).then(r=>r.json()),
+      fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockCashFlowsStatement&data_id=${{t}}&start_date=${{start2y}}`).then(r=>r.json()),
     ]);
-    const dayData=await dayResp.json();
-    const valData=await valResp.json();
 
-    // STOCK_DAY fields: 日期,成交股數,成交金額,開盤價,最高價,最低價,收盤價,漲跌價差,成交筆數
+    // --- Price & momentum from STOCK_DAY ---
+    // fields: 日期,成交股數,成交金額,開盤價,最高價,最低價,收盤價,漲跌價差,成交筆數
     const lastRow=dayData.data?.[dayData.data.length-1];
-    if(!lastRow) throw new Error('no price data');
+    if(!lastRow)throw new Error('no price data');
     const price=parseFloat(lastRow[6].replace(/,/g,''))||0;
     const change=parseFloat(lastRow[7].replace(/[+,]/g,''))||0;
     const changePct=(price>0&&price!==change)?change/(price-change)*100:0;
+    const allPrices=dayData.data.map(r=>parseFloat(r[6].replace(/,/g,''))||0).filter(v=>v>0);
+    const monthHi=Math.max(...allPrices)||price, monthLo=Math.min(...allPrices)||price;
+    const momo=allPrices[0]>0?(price-allPrices[0])/allPrices[0]:0;
+    const vols=dayData.data.map(r=>parseInt(r[1].replace(/,/g,''),10)||0);
+    const avgVol=vols.reduce((a,b)=>a+b,0)/vols.length||1;
+    const curVol=vols[vols.length-1]||0;
 
-    // BWIBBU_d fields: 證券代號,證券名稱,收盤價,殖利率(%),股利年度,本益比,股價淨值比,財報年/季
+    // --- Valuation from BWIBBU_d ---
+    // fields: 證券代號,證券名稱,收盤價,殖利率(%),股利年度,本益比,股價淨值比,財報年/季
     const valRow=valData.data?.find(r=>r[0]===t);
     const pe=valRow?parseFloat(valRow[5])||0:0;
     const pb=valRow?parseFloat(valRow[6])||0:0;
     const div=valRow?parseFloat(valRow[3])||0:0;
 
-    const stock={{t,n,s,ticker:t,name:n,sector:s,
-      price,change,changePct,pe,pb,div,_partial:true}};
+    // --- Fundamentals from Finmind ---
+    const getV=(data,type,date)=>{{const r=data.find(r=>r.type===type&&r.date===date);return r?r.value:0;}};
+    const getDates=(data)=>[...new Set(data.map(r=>r.date))].sort((a,b)=>b.localeCompare(a));
+
+    // Income statement — prefer annual (Dec 31) for clean YoY comparison
+    const fsDates=getDates(fsData.data);
+    const annFS=fsDates.filter(d=>d.includes('-12-'));
+    const d0=annFS[0]||fsDates[0];
+    const d1=annFS[1]||fsDates[Math.min(4,fsDates.length-1)];
+
+    const rev0=getV(fsData.data,'Revenue',d0);
+    const rev1=getV(fsData.data,'Revenue',d1);
+    const gp0=getV(fsData.data,'GrossProfit',d0);
+    const oi0=getV(fsData.data,'OperatingIncome',d0);
+    const ni0=getV(fsData.data,'IncomeAfterTaxes',d0);
+    const eps0=getV(fsData.data,'EPS',d0);
+    const eps1=getV(fsData.data,'EPS',d1);
+
+    // Balance sheet — most recent quarter
+    const bsDates=getDates(bsData.data);
+    const bsD=bsDates[0];
+    const tlEq=getV(bsData.data,'TotalLiabilitiesEquity',bsD);
+    const eq=getV(bsData.data,'Equity',bsD);
+    const ca=getV(bsData.data,'CurrentAssets',bsD);
+    const cl=getV(bsData.data,'CurrentLiabilities',bsD);
+    const cashVal=getV(bsData.data,'CashAndCashEquivalents',bsD);
+    const tLiab=tlEq-eq;
+
+    // Cash flow — most recent period
+    const cfDates=getDates(cfData.data);
+    const cfD=cfDates[0];
+    const opCFval=getV(cfData.data,'CashFlowsFromOperatingActivities',cfD)||
+                  getV(cfData.data,'NetCashInflowFromOperatingActivities',cfD);
+
+    // Compute ratios (as fractions/percentages matching scoreStockJS expectations)
+    const grossM=rev0>0?gp0/rev0:0;       // fraction → scoreStockJS does *100
+    const opMval=rev0>0?oi0/rev0:0;
+    const netMval=rev0>0?ni0/rev0:0;
+    const roeVal=eq>0?ni0/eq:0;
+    const revGrVal=rev1>0?(rev0-rev1)/rev1:0;
+    const earnGrVal=eps1!==0?(eps0-eps1)/Math.abs(eps1):0;
+    const deqVal=eq>0?tLiab/eq*100:0;     // % form (scoreStockJS uses directly)
+    const currRval=cl>0?ca/cl:0;
+    const mktCapVal=pb>0&&eq>0?fmtCap(eq*pb):'—';
+
+    // Assemble info object exactly as scoreStockJS expects (Yahoo Finance field names)
+    const info={{
+      returnOnEquity:roeVal, grossMargins:grossM,
+      operatingMargins:opMval, profitMargins:netMval,
+      revenueGrowth:revGrVal, earningsGrowth:earnGrVal,
+      trailingPE:pe, priceToBook:pb,
+      dividendYield:div/100,   // BWIBBU_d gives %, scoreStockJS expects fraction
+      debtToEquity:deqVal, currentRatio:currRval,
+      operatingCashflow:opCFval, freeCashflow:opCFval,
+      totalCash:cashVal, totalDebt:tLiab,
+      beta:1,
+      '52WeekChange':momo, SandP52WeekChange:0,
+      regularMarketVolume:curVol, averageVolume:avgVol,
+      regularMarketPrice:price, currentPrice:price,
+      fiftyTwoWeekHigh:monthHi, fiftyTwoWeekLow:monthLo,
+    }};
+
+    const sc=scoreStockJS(info,'general');
+    const stock={{
+      t,n,s,ticker:t,name:n,sector:s,type:'watch',stock_type:'general',
+      price,change,changePct,mktCap:mktCapVal,
+      ai:sc.total,tag:sc.tag,
+      fin:sc.profit,growth_s:sc.growth,
+      valuation:sc.valuation,financial:sc.financial,market:sc.market,
+      risk:sc.risk,typeAdj:sc.typeAdj,
+      ai_bar:makeBarJS(sc.total,100),fin_bar:makeBarJS(sc.profit,20),
+      growth_bar:makeBarJS(sc.growth,20),val_bar:makeBarJS(sc.valuation,15),
+      financial_bar:makeBarJS(sc.financial,15),market_bar:makeBarJS(sc.market,10),
+      ok:true
+    }};
     const idx=localWatch.findIndex(x=>x.t===t);
     if(idx>=0)localWatch[idx]=stock; else localWatch.push(stock);
   }}catch(e){{
-    const idx=localWatch.findIndex(x=>x.t===t);
-    if(idx>=0)localWatch[idx]={{t,n,s,_failed:true,_err:e.message}};
+    // Finmind failed — fall back to TWSE-only partial row
+    try{{
+      const [dayResp,valResp]=await Promise.all([
+        fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?stockNo=${{t}}&response=json`),
+        fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json`)
+      ]);
+      const dayData=await dayResp.json(),valData=await valResp.json();
+      const lastRow=dayData.data?.[dayData.data.length-1];
+      const price=lastRow?parseFloat(lastRow[6].replace(/,/g,''))||0:0;
+      const change=lastRow?parseFloat(lastRow[7].replace(/[+,]/g,''))||0:0;
+      const changePct=(price>0&&price!==change)?change/(price-change)*100:0;
+      const valRow=valData.data?.find(r=>r[0]===t);
+      const pe=valRow?parseFloat(valRow[5])||0:0;
+      const pb=valRow?parseFloat(valRow[6])||0:0;
+      const div=valRow?parseFloat(valRow[3])||0:0;
+      const stock={{t,n,s,ticker:t,name:n,sector:s,price,change,changePct,pe,pb,div,_partial:true}};
+      const idx=localWatch.findIndex(x=>x.t===t);
+      if(idx>=0)localWatch[idx]=stock; else localWatch.push(stock);
+    }}catch(e2){{
+      const idx=localWatch.findIndex(x=>x.t===t);
+      if(idx>=0)localWatch[idx]={{t,n,s,_failed:true}};
+    }}
   }}
   saveLocal(); renderLocalRows();
 }}
