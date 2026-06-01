@@ -272,9 +272,9 @@ def table_rows(lst):
               {type_badge(s.get("stock_type","general"))}
               <span style="color:var(--muted);font-size:10px;">&nbsp;{s["sector"]}</span>
             </div></td>
-          <td>{s_bar(s["ai"])}</td><td>{s_bar(s["fin"],65)}</td>
-          <td>{s_bar(s["growth_s"],65)}</td><td>{s_bar(s["valuation"],65)}</td>
-          <td>{s_bar(s["financial"],65)}</td><td>{s_bar(s["market"],65)}</td>
+          <td>{s["ai_bar"]}</td><td>{s["fin_bar"]}</td>
+          <td>{s["growth_bar"]}</td><td>{s["val_bar"]}</td>
+          <td>{s["financial_bar"]}</td><td>{s["market_bar"]}</td>
           <td style="font-weight:600;">NT${s["price"]:.2f}</td>
           <td>{ch_html(s["change"],s["changePct"])}</td>
           <td style="color:var(--muted);font-size:12px;">{s["mktCap"]}</td>
