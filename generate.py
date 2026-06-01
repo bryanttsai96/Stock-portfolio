@@ -857,25 +857,33 @@ function localRowHtml(u){{
       ⚠ 無法取得資料（請確認股票代碼）</td>
     <td>${{rmBtn(u.t)}}</td></tr>`;
 
-  if(u._partial) return`<tr>
-    <td><span class="cn">${{u.name}}</span><span class="tic">${{u.ticker}}</span>
-      <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
-        <span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;
-          font-size:10px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span>
-        <span style="color:var(--muted);font-size:10px;">${{u.sector}}</span>
-      </div></td>
-    <td>${{emptyBar(68,6,3)}}</td>
-    <td>${{emptyBar(50,4,2)}}</td>
-    <td>${{emptyBar(50,4,2)}}</td>
-    <td>${{metricCell('本益比',u.pe?u.pe.toFixed(1):null,'')}}</td>
-    <td>${{metricCell('淨值比',u.pb?u.pb.toFixed(2):null,'x')}}</td>
-    <td>${{metricCell('殖利率',u.div?u.div.toFixed(1):null,'%')}}</td>
-    <td style="font-weight:600;">${{u.price?'NT$'+u.price.toFixed(2):'-'}}</td>
-    <td>${{u.price?chHtml(u.change,u.changePct):'-'}}</td>
-    <td style="color:var(--muted);font-size:12px;">-</td>
-    <td><span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;
-      font-size:11px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span></td>
-    <td>${{rmBtn(u.ticker)}}</td></tr>`;
+  if(u._partial){{
+    const metas=[];
+    if(u.pe)  metas.push(`本益比 ${{u.pe.toFixed(1)}}`);
+    if(u.pb)  metas.push(`淨值比 ${{u.pb.toFixed(2)}}x`);
+    if(u.div) metas.push(`殖利率 ${{u.div.toFixed(1)}}%`);
+    return`<tr>
+      <td><span class="cn">${{u.name}}</span><span class="tic">${{u.ticker}}</span>
+        <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
+          <span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:10px;
+            font-size:10px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span>
+          <span style="color:var(--muted);font-size:10px;">${{u.sector}}</span>
+        </div>
+        ${{metas.length?`<div style="margin-top:3px;color:var(--muted);font-size:10px;">${{metas.join(' · ')}}</div>`:''}}
+      </td>
+      <td>${{emptyBar(68,6,3)}}</td>
+      <td>${{emptyBar(50,4,2)}}</td>
+      <td>${{emptyBar(50,4,2)}}</td>
+      <td>${{emptyBar(50,4,2)}}</td>
+      <td>${{emptyBar(50,4,2)}}</td>
+      <td>${{emptyBar(50,4,2)}}</td>
+      <td style="font-weight:600;">${{u.price?'NT$'+u.price.toFixed(2):'-'}}</td>
+      <td>${{u.price?chHtml(u.change,u.changePct):'-'}}</td>
+      <td style="color:var(--muted);font-size:12px;">-</td>
+      <td><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;
+        font-size:11px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span></td>
+      <td>${{rmBtn(u.ticker)}}</td></tr>`;
+  }}
 
   // full scored row (legacy — kept for any old localStorage entries)
   return`<tr>
