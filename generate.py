@@ -444,16 +444,24 @@ main{{padding:20px 24px}}
     <thead><tr><th>代號／名稱</th><th>AI總分</th><th>獲利品質</th><th>成長動能</th>
       <th>估值</th><th>財務</th><th>市場面</th><th>現價</th><th>漲跌</th><th>市值</th><th>建議</th><th></th></tr></thead>
     <tbody id="tb-main">{table_rows(main_s)}</tbody>
+    <tbody id="tb-main-local"></tbody>
+  </table></div>
+  <div class="sh"><h2>觀望清單</h2><span class="badge bw">{len(watch_s)} 檔</span></div>
+  <div class="sw"><table>
+    <thead><tr><th>代號／名稱</th><th>AI總分</th><th>獲利品質</th><th>成長動能</th>
+      <th>估值</th><th>財務</th><th>市場面</th><th>現價</th><th>漲跌</th><th>市值</th><th>建議</th><th></th></tr></thead>
+    <tbody id="tb-watch">{table_rows(watch_s)}</tbody>
+    <tbody id="tb-watch-local"></tbody>
   </table></div>
   <div class="sh">
-    <h2>觀望清單</h2><span class="badge bw">{len(watch_s)} 檔</span>
+    <h2>學習清單</h2>
+    <span class="badge" id="badge-learning" style="background:rgba(161,161,169,.15);color:#a1a1a9;">0 檔</span>
     <button onclick="toggleAddBox()" id="add-btn"
       style="margin-left:auto;padding:5px 14px;border-radius:20px;border:1px solid var(--blue);
              background:rgba(88,166,255,.1);color:var(--blue);font-size:12px;cursor:pointer;">
-      ＋ 新增候選股
+      ＋ 新增學習股
     </button>
   </div>
-  <!-- inline add box -->
   <div id="add-box" style="display:none;background:var(--bg2);border:1px solid var(--border);
        border-radius:10px;padding:14px 16px;margin-bottom:16px;">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -477,8 +485,8 @@ main{{padding:20px 24px}}
   <div class="sw"><table>
     <thead><tr><th>代號／名稱</th><th>AI總分</th><th>獲利品質</th><th>成長動能</th>
       <th>估值</th><th>財務</th><th>市場面</th><th>現價</th><th>漲跌</th><th>市值</th><th>建議</th><th></th></tr></thead>
-    <tbody id="tb-watch">{table_rows(watch_s)}</tbody>
-    <tbody id="tb-local"></tbody>
+    <tbody id="tb-learning"><tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">
+      暫無學習股 — 點擊「＋ 新增學習股」開始探索</td></tr></tbody>
   </table></div>
 </div>
 
@@ -790,7 +798,7 @@ function scoreStockJS(info,stype){{
 async function addToWatch(t,n,s){{
   if(localWatch.find(x=>x.t===t))return;
   localWatch.push({{t,n,s,_loading:true}});
-  saveLocal(); renderLocalRows();
+  saveLocal(); renderAllLocalRows();
   toggleAddBox(); document.getElementById('add-srch').value='';
 
   try{{
@@ -888,8 +896,10 @@ async function addToWatch(t,n,s){{
     }};
 
     const sc=scoreStockJS(info,'general');
+    const existingTable=localWatch.find(x=>x.t===t||x.ticker===t)?._table||'learning';
     const stock={{
       t,n,s,ticker:t,name:n,sector:s,type:'watch',stock_type:'general',
+      _table:existingTable,
       price,change,changePct,mktCap:mktCapVal,
       ai:sc.total,tag:sc.tag,
       fin:sc.profit,growth_s:sc.growth,
@@ -926,39 +936,54 @@ async function addToWatch(t,n,s){{
       if(idx>=0)localWatch[idx]={{t,n,s,_failed:true}};
     }}
   }}
-  saveLocal(); renderLocalRows();
+  saveLocal(); renderAllLocalRows();
 }}
 
 function removeLocal(t){{
-  localWatch=localWatch.filter(x=>x.t!==t);
-  saveLocal();renderLocalRows();
+  localWatch=localWatch.filter(x=>x.t!==t&&x.ticker!==t);
+  // Remove from stocks array too so openDetail doesn't find stale data
+  const si=stocks.findIndex(s=>s.ticker===t);
+  if(si>=0&&stocks[si]._local)stocks.splice(si,1);
+  saveLocal();renderAllLocalRows();
+}}
+function moveLocal(t,toTable){{
+  const idx=localWatch.findIndex(x=>(x.t||x.ticker)===t);
+  if(idx<0)return;
+  localWatch[idx]._table=toTable;
+  saveLocal();renderAllLocalRows();
 }}
 
-function localRowHtml(u){{
-  const rmBtn=(t)=>`<button onclick="removeLocal('${{t}}')" style="padding:4px 10px;border-radius:5px;
-    border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">移除</button>`;
+function localRowHtml(u, tbl){{
+  const tid=u.ticker||u.t;
+  const rmBtn=`<button onclick="removeLocal('${{tid}}')" style="padding:3px 8px;border-radius:5px;
+    border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">✕</button>`;
+  const mvBtn=(label,to,col)=>`<button onclick="moveLocal('${{tid}}','${{to}}')"
+    style="padding:3px 8px;border-radius:5px;border:1px solid ${{col}};background:transparent;
+    color:${{col}};font-size:11px;cursor:pointer;white-space:nowrap;">${{label}}</button>`;
   const emptyBar=(w,h,r)=>`<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
     <div style="width:${{w}}px;height:${{h}}px;border-radius:${{r}}px;background:#30363d;flex-shrink:0;opacity:.4;"></div>
     <span style="color:var(--muted);font-size:11px;">-</span></div>`;
-  const metricCell=(label,val,unit)=>val?
-    `<div style="display:flex;align-items:center;gap:4px;white-space:nowrap;">
-      <span style="color:var(--muted);font-size:10px;">${{label}}</span>
-      <span style="font-size:12px;font-weight:600;color:#c9d1d9;">${{val}}${{unit}}</span></div>`:
-    emptyBar(50,4,2);
+
+  // Action buttons depend on which table the row lives in
+  let acts;
+  if(tbl==='main')
+    acts=`${{mvBtn('↓ 觀望','watch','var(--blue)')}} ${{mvBtn('↓ 學習','learning','var(--muted)')}} ${{rmBtn}}`;
+  else if(tbl==='watch')
+    acts=`${{mvBtn('↑ 持股','main','var(--green)')}} ${{mvBtn('↓ 學習','learning','var(--muted)')}} ${{rmBtn}}`;
+  else
+    acts=`${{mvBtn('↑ 觀望','watch','var(--blue)')}} ${{mvBtn('↑ 持股','main','var(--green)')}} ${{rmBtn}}`;
 
   if(u._loading) return`<tr>
     <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span>
-      <div style="margin-top:3px;color:var(--muted);font-size:10px;">${{u.s}}</div></td>
-    <td colspan="10" style="color:var(--muted);font-size:12px;padding-left:12px;">
-      ⏳ 正在取得市場資料...</td>
-    <td>${{rmBtn(u.t)}}</td></tr>`;
+      <div style="color:var(--muted);font-size:10px;margin-top:3px;">${{u.s||''}}</div></td>
+    <td colspan="10" style="color:var(--muted);font-size:12px;">⏳ 正在取得資料…</td>
+    <td style="white-space:nowrap;">${{rmBtn}}</td></tr>`;
 
   if(u._failed) return`<tr>
     <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span>
-      <div style="margin-top:3px;color:var(--muted);font-size:10px;">${{u.s}}</div></td>
-    <td colspan="10" style="color:#f85149;font-size:12px;padding-left:12px;">
-      ⚠ 無法取得資料（請確認股票代碼）</td>
-    <td>${{rmBtn(u.t)}}</td></tr>`;
+      <div style="color:var(--muted);font-size:10px;margin-top:3px;">${{u.s||''}}</div></td>
+    <td colspan="10" style="color:#f85149;font-size:12px;">⚠ 無法取得資料（請確認股票代碼）</td>
+    <td style="white-space:nowrap;">${{rmBtn}}</td></tr>`;
 
   if(u._partial){{
     const metas=[];
@@ -966,50 +991,65 @@ function localRowHtml(u){{
     if(u.pb)  metas.push(`淨值比 ${{u.pb.toFixed(2)}}x`);
     if(u.div) metas.push(`殖利率 ${{u.div.toFixed(1)}}%`);
     return`<tr>
-      <td><span class="cn">${{u.name}}</span><span class="tic">${{u.ticker}}</span>
+      <td><span class="cn">${{u.name||u.n}}</span><span class="tic">${{u.ticker||u.t}}</span>
         <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
-          <span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:10px;
-            font-size:10px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span>
-          <span style="color:var(--muted);font-size:10px;">${{u.sector}}</span>
+          ${{tBadge(u.stock_type||'general')}}
+          <span style="color:var(--muted);font-size:10px;">${{u.sector||u.s}}</span>
         </div>
         ${{metas.length?`<div style="margin-top:3px;color:var(--muted);font-size:10px;">${{metas.join(' · ')}}</div>`:''}}
       </td>
-      <td>${{emptyBar(68,6,3)}}</td>
-      <td>${{emptyBar(50,4,2)}}</td>
-      <td>${{emptyBar(50,4,2)}}</td>
-      <td>${{emptyBar(50,4,2)}}</td>
-      <td>${{emptyBar(50,4,2)}}</td>
-      <td>${{emptyBar(50,4,2)}}</td>
+      ${{[emptyBar(68,6,3),emptyBar(50,4,2),emptyBar(50,4,2),emptyBar(50,4,2),emptyBar(50,4,2),emptyBar(50,4,2)].map(b=>`<td>${{b}}</td>`).join('')}}
       <td style="font-weight:600;">${{u.price?'NT$'+u.price.toFixed(2):'-'}}</td>
       <td>${{u.price?chHtml(u.change,u.changePct):'-'}}</td>
       <td style="color:var(--muted);font-size:12px;">-</td>
-      <td><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;
-        font-size:11px;font-weight:600;background:rgba(88,166,255,.15);color:var(--blue);">候選</span></td>
-      <td>${{rmBtn(u.ticker)}}</td></tr>`;
+      <td>${{tagHtml('—')}}</td>
+      <td style="white-space:nowrap;">${{acts}}</td></tr>`;
   }}
 
-  // full scored row (legacy — kept for any old localStorage entries)
+  // Full scored row
+  const detailBtn=`<button class="drill" onclick="openDetail('${{tid}}')">詳情→</button>`;
   return`<tr>
-    <td><span class="cn">${{u.name}}</span><span class="tic">${{u.ticker}}</span>
+    <td><span class="cn">${{u.name||u.n}}</span><span class="tic">${{u.ticker||u.t}}</span>
       <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
-        ${{tBadge(u.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{u.sector}}</span>
+        ${{tBadge(u.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{u.sector||u.s}}</span>
       </div></td>
     <td>${{u.ai_bar}}</td><td>${{u.fin_bar}}</td><td>${{u.growth_bar}}</td>
     <td>${{u.val_bar}}</td><td>${{u.financial_bar}}</td><td>${{u.market_bar}}</td>
-    <td style="font-weight:600;">NT$${{u.price.toFixed(2)}}</td>
-    <td>${{chHtml(u.change,u.changePct)}}</td>
-    <td style="color:var(--muted);font-size:12px;">${{u.mktCap||'-'}}</td>
+    <td style="font-weight:600;">NT$${{(u.price||0).toFixed(2)}}</td>
+    <td>${{chHtml(u.change||0,u.changePct||0)}}</td>
+    <td style="color:var(--muted);font-size:12px;">${{u.mktCap||'—'}}</td>
     <td>${{tagHtml(u.tag)}}</td>
-    <td>${{rmBtn(u.ticker)}}</td></tr>`;
+    <td style="white-space:nowrap;">${{detailBtn}} ${{acts}}</td></tr>`;
 }}
 
-function renderLocalRows(){{
-  const tb=document.getElementById('tb-local');
-  if(!localWatch.length){{tb.innerHTML='';return;}}
-  tb.innerHTML=`<tr><td colspan="12" style="padding:6px 12px;background:rgba(88,166,255,.06);
-    color:var(--muted);font-size:11px;border-top:2px solid rgba(88,166,255,.3);">
-    ▸ 候選中（本機儲存）</td></tr>`
-  +localWatch.map(localRowHtml).join('');
+function renderAllLocalRows(){{
+  const main=localWatch.filter(u=>u._table==='main');
+  const watch=localWatch.filter(u=>u._table==='watch');
+  const learn=localWatch.filter(u=>!u._table||u._table==='learning');
+
+  const sectionHdr=(label,col)=>`<tr><td colspan="12" style="padding:5px 12px;
+    background:rgba(${{col}},.06);color:var(--muted);font-size:11px;
+    border-top:2px solid rgba(${{col}},.25);">▸ ${{label}}（本機儲存）</td></tr>`;
+
+  const el=(id)=>document.getElementById(id);
+  if(el('tb-main-local')) el('tb-main-local').innerHTML=
+    main.length?sectionHdr('自選持股','88,166,255')+main.map(u=>localRowHtml(u,'main')).join(''):'';
+  if(el('tb-watch-local')) el('tb-watch-local').innerHTML=
+    watch.length?sectionHdr('自選觀望','88,166,255')+watch.map(u=>localRowHtml(u,'watch')).join(''):'';
+
+  const tbL=el('tb-learning');
+  const badge=el('badge-learning');
+  if(badge) badge.textContent=learn.length+' 檔';
+  if(tbL) tbL.innerHTML=learn.length
+    ?learn.map(u=>localRowHtml(u,'learning')).join('')
+    :`<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">
+       暫無學習股 — 點擊「＋ 新增學習股」開始探索</td></tr>`;
+
+  // Register scored local stocks in stocks[] so openDetail() works
+  localWatch.filter(u=>u.ok&&u.ticker).forEach(u=>{{
+    if(!stocks.find(s=>s.ticker===u.ticker))
+      stocks.push({{...u,type:u._table||'learning',_local:true}});
+  }});
 }}
 let radarDone=false;
 function renderRadar(){{
@@ -1120,7 +1160,7 @@ function openDetail(ticker){{
   }},80);
 }}
 // init local watch rows on page load
-renderLocalRows();
+renderAllLocalRows();
 </script>
 </body>
 </html>'''
