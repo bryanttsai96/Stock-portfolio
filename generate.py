@@ -176,17 +176,27 @@ def score_stock(info, cfg):
     return total,tag,bd
 
 def make_bar(val, max_val):
-    """Unicode block bar — pure text, zero CSS/JS dependency."""
-    pct  = round(val / max_val * 100) if max_val > 0 else 0
-    fill = round(pct / 10)            # 0-10 filled blocks
-    bar  = "█" * fill + "░" * (10 - fill)
+    """Inline CSS progress bar — slim, rounded, colour-coded by proportion."""
+    pct = round(val / max_val * 100) if max_val > 0 else 0
     if   pct >= 70: col = "#3fb950"   # green
     elif pct >= 50: col = "#58a6ff"   # blue
     elif pct >= 30: col = "#d2991f"   # yellow
     else:           col = "#f85149"   # red
-    lbl  = f"{val}" if max_val == 100 else f"{val}/{max_val}"
-    return (f'<span style="font-family:monospace;letter-spacing:-1px;color:{col}">{bar}</span>'
-            f'&nbsp;<span style="font-weight:700;color:{col}">{lbl}</span>')
+    lbl = f"{val}" if max_val == 100 else f"{val}/{max_val}"
+    bw  = 68 if max_val == 100 else 50   # bar width px
+    bh  = 6  if max_val == 100 else 4    # bar height px
+    br  = 3  if max_val == 100 else 2    # border-radius px
+    fs  = "13px" if max_val == 100 else "11px"
+    fw  = "700"  if max_val == 100 else "600"
+    return (
+        f'<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">'
+        f'<div style="width:{bw}px;height:{bh}px;border-radius:{br}px;'
+        f'background:#30363d;overflow:hidden;flex-shrink:0;">'
+        f'<div style="width:{pct}%;height:100%;background:{col};border-radius:{br}px;"></div>'
+        f'</div>'
+        f'<span style="color:{col};font-size:{fs};font-weight:{fw};min-width:28px;">{lbl}</span>'
+        f'</div>'
+    )
 
 def fetch_stock(cfg):
     symbol=cfg["ticker"]+".TW"
