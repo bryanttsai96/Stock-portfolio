@@ -308,6 +308,7 @@ html=f'''<!DOCTYPE html>
 <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <title>台股AI研究儀表板</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{{--bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--text:#e6edf3;
       --muted:#8b949e;--green:#3fb950;--red:#f85149;--yellow:#d29922;
@@ -330,9 +331,15 @@ main{{padding:20px 24px}}
 .bw{{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid rgba(210,153,34,.3)}}
 .fbar{{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center}}
 .fbtn{{padding:5px 12px;border-radius:20px;border:1px solid var(--border);
-       background:var(--bg2);color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s}}
+       background:var(--bg2);color:var(--muted);cursor:pointer;font-size:12px;transition:all .2s}}
 .fbtn:hover{{border-color:var(--blue);color:var(--blue)}}
 .fbtn.active{{background:var(--accent);border-color:var(--accent);color:#fff}}
+.fbtn.active-buy{{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.6);color:#3fb950;
+  box-shadow:0 0 10px rgba(63,185,80,.35),inset 0 0 8px rgba(63,185,80,.08)}}
+.fbtn.active-watch{{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.6);color:#58a6ff;
+  box-shadow:0 0 10px rgba(88,166,255,.35),inset 0 0 8px rgba(88,166,255,.08)}}
+.fbtn.active-hold{{background:rgba(210,153,31,.12);border-color:rgba(210,153,31,.6);color:#d2991f;
+  box-shadow:0 0 10px rgba(210,153,31,.35),inset 0 0 8px rgba(210,153,31,.08)}}
 .sw{{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
      overflow:hidden;margin-bottom:28px;overflow-x:auto}}
 .sw table{{width:100%;border-collapse:collapse;min-width:920px}}
@@ -434,9 +441,15 @@ main{{padding:20px 24px}}
     <button class="fbtn active" onclick="filt('all',this)">全部</button>
     <button class="fbtn" onclick="filt('main',this)">主要持股</button>
     <button class="fbtn" onclick="filt('watch',this)">觀望清單</button>
-    <button class="fbtn" onclick="filt('buy',this)">🟢 買入 ≥70</button>
-    <button class="fbtn" onclick="filt('wtag',this)">🔵 觀望 58-69</button>
-    <button class="fbtn" onclick="filt('hold',this)">🟡 持有/迴避</button>
+    <button class="fbtn" onclick="filt('buy',this)" data-glow="active-buy">
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3fb950;
+        box-shadow:0 0 5px #3fb950;margin-right:5px;vertical-align:middle;"></span>買入 ≥70</button>
+    <button class="fbtn" onclick="filt('wtag',this)" data-glow="active-watch">
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#58a6ff;
+        box-shadow:0 0 5px #58a6ff;margin-right:5px;vertical-align:middle;"></span>觀望 58-69</button>
+    <button class="fbtn" onclick="filt('hold',this)" data-glow="active-hold">
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d2991f;
+        box-shadow:0 0 5px #d2991f;margin-right:5px;vertical-align:middle;"></span>持有/迴避</button>
     <span style="margin-left:auto;color:var(--muted);font-size:12px;">點擊「詳情」查看評分細項</span>
   </div>
   <div class="sh"><h2>主要持股</h2><span class="badge bm">{len(main_s)} 檔</span></div>
@@ -542,6 +555,51 @@ main{{padding:20px 24px}}
         <div style="color:var(--muted);font-size:11px;">風險大於機會</div></div>
     </div>
   </div>
+  <div class="ain" style="max-width:920px;margin-top:4px;">
+    <h3>🗂 資料來源與計算週期</h3>
+    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.5px;margin-bottom:10px;">📡 搜尋資料庫</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9;">
+          <span style="color:var(--text)">來源：</span>Supabase（本地資料庫）<br>
+          <span style="color:var(--text)">內容：</span>TWSE 上市 ＋ TPEX 上櫃約 39,000 檔<br>
+          <span style="color:var(--text)">更新：</span>手動重新爬取（靜態快照）<br>
+          <span style="color:var(--text)">原始來源：</span>isin.twse.com.tw 官方 ISIN 頁面
+        </div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:.5px;margin-bottom:10px;">💹 現價 ／ 估值倍數</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9;">
+          <span style="color:var(--text)">來源：</span>TWSE 官方 API（即時）<br>
+          <span style="color:var(--text)">現價、漲跌：</span>當月每日收盤（STOCK_DAY）<br>
+          <span style="color:var(--text)">P/E、P/B、殖利率：</span>TTM，TWSE BWIBBU_d<br>
+          <span style="color:var(--text)">更新：</span>每次新增股票時即時拉取
+        </div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--yellow);letter-spacing:.5px;margin-bottom:10px;">📊 獲利 ／ 成長 ／ 財務指標</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9;">
+          <span style="color:var(--text)">來源：</span>FinMind API（finmindtrade.com）<br>
+          <span style="color:var(--text)">ROE、毛利率、營業利益率、淨利率：</span><br>
+          　最新完整年度（12/31）財報<br>
+          <span style="color:var(--text)">營收 ／ EPS 成長率：</span>最新年 vs 前一年（YoY）<br>
+          <span style="color:var(--text)">負債比、流動比率、現金：</span>最新季度資產負債表<br>
+          <span style="color:var(--text)">現金流：</span>最新可用期間現金流量表<br>
+          <span style="color:var(--yellow)">⚠ 免費版每小時限約 30 次請求</span>
+        </div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--purple);letter-spacing:.5px;margin-bottom:10px;">⚡ 重要限制說明</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.9;">
+          台灣公司採季報制，財報有約 <span style="color:var(--text)">45 天公告延遲</span><br>
+          若 Q4 尚未申報，「最新年度」可能為前一年度<br>
+          市場面指標僅反映<span style="color:var(--text)">當月</span>交易資料（非完整52週）<br>
+          P/E 為空值時，成長動能前瞻分以營收替代<br>
+          所有評分<span style="color:var(--red)">不代表買賣建議</span>，僅供研究參考
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="p-detail" style="display:none">
@@ -581,7 +639,9 @@ function renderTbody(id,list){{
   </tr>`).join('');
 }}
 function filt(type,btn){{
-  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active','active-buy','active-watch','active-hold'));
+  const glowCls=btn.dataset.glow;
+  btn.classList.add(glowCls||'active');
   document.getElementById('srch').value='';
   let m=stocks.filter(s=>s.type==='main'),w=stocks.filter(s=>s.type==='watch');
   if(type==='main') w=[];else if(type==='watch') m=[];
@@ -594,7 +654,7 @@ function doSearch(q){{
   q=q.trim().toLowerCase();
   if(!q){{
     // restore active filter
-    const active=document.querySelector('.fbtn.active');
+    const active=document.querySelector('.fbtn.active,.fbtn.active-buy,.fbtn.active-watch,.fbtn.active-hold');
     if(active){{active.click();return;}}
     renderTbody('tb-main',stocks.filter(s=>s.type==='main'));
     renderTbody('tb-watch',stocks.filter(s=>s.type==='watch'));
@@ -615,33 +675,72 @@ function show(name){{
   if(name==='comparison')renderRadar();
 }}
 
-// ── Candidate Watch List (localStorage) ──────────────────────────────────
-const UNIVERSE=[
-  {{t:'2330',n:'台積電',s:'晶圓代工'}},{{t:'2303',n:'聯電',s:'晶圓代工'}},
-  {{t:'2454',n:'聯發科',s:'IC設計'}},{{t:'2379',n:'瑞昱半導體',s:'IC設計'}},
-  {{t:'3034',n:'聯詠',s:'IC設計'}},{{t:'3443',n:'創意電子',s:'IC設計服務'}},
-  {{t:'5274',n:'信驊科技',s:'IC設計'}},{{t:'2337',n:'旺宏電子',s:'Flash記憶體'}},
-  {{t:'6670',n:'復華',s:'IC設計'}},{{t:'8299',n:'群聯電子',s:'Flash控制IC'}},
-  {{t:'6669',n:'緯穎科技',s:'伺服器'}},{{t:'2382',n:'廣達電腦',s:'伺服器'}},
-  {{t:'3231',n:'緯創資通',s:'伺服器'}},{{t:'2317',n:'鴻海',s:'EMS組裝'}},
-  {{t:'2308',n:'台達電子',s:'電源/散熱'}},{{t:'3017',n:'奇鋐科技',s:'散熱'}},
-  {{t:'6415',n:'矽力杰',s:'電源IC'}},{{t:'2301',n:'光寶科技',s:'電源/光學'}},
-  {{t:'3037',n:'欣興電子',s:'PCB'}},{{t:'3044',n:'健鼎科技',s:'PCB'}},
-  {{t:'6274',n:'台燿科技',s:'CCL基板'}},{{t:'3533',n:'嘉澤端子',s:'連接器'}},
-  {{t:'6230',n:'超眾科技',s:'散熱模組'}},{{t:'2345',n:'智邦科技',s:'網通設備'}},
-  {{t:'6515',n:'穎崴科技',s:'半導體測試'}},{{t:'6239',n:'力成科技',s:'IC封測'}},
-  {{t:'3016',n:'嘉晶電子',s:'化合物半導體'}},{{t:'6531',n:'愛普科技',s:'半導體材料'}},
-  {{t:'2049',n:'上銀科技',s:'精密機械'}},{{t:'1590',n:'亞德客',s:'氣動元件'}},
-  {{t:'1504',n:'東元電機',s:'馬達/電力'}},{{t:'1536',n:'和大工業',s:'汽車零件'}},
-  {{t:'1513',n:'中興電',s:'電力設備'}},{{t:'3714',n:'富采投控',s:'LED'}},
-  {{t:'2884',n:'玉山金控',s:'金融'}},{{t:'2882',n:'國泰金控',s:'金融'}},
-  {{t:'1789',n:'神隆',s:'原料藥'}},{{t:'4144',n:'美時化學製藥',s:'學名藥'}},
-  {{t:'3042',n:'晶技',s:'石英元件'}},{{t:'6671',n:'三聯科技',s:'UPS'}},
-  {{t:'3529',n:'力旺電子',s:'IP授權'}},{{t:'3708',n:'上緯投控',s:'複合材料'}},
-];
+// ── Supabase client ───────────────────────────────────────────────────────
+const SB_URL='https://tzhdqtdluzstmougrsul.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6aGRxdGRsdXpzdG1vdWdyc3VsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTQzNDMsImV4cCI6MjA5NjAzMDM0M30.U3btm9GluHMZ9dDtr1nqVyGaQtflkmCDZvimoam4Aow';
+const sb=supabase.createClient(SB_URL,SB_KEY);
 
+// ── Candidate Watch List (localStorage) ──────────────────────────────────
+// ── Anonymous session identity ────────────────────────────────────────────
+let SESSION_ID=localStorage.getItem('tw_session_id');
+if(!SESSION_ID){{
+  SESSION_ID=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now().toString(36));
+  localStorage.setItem('tw_session_id',SESSION_ID);
+}}
+
+// ── Local watchlist (localStorage as fast cache, Supabase as source of truth) ──
 let localWatch=JSON.parse(localStorage.getItem('tw_local_watch')||'[]');
-function saveLocal(){{localStorage.setItem('tw_local_watch',JSON.stringify(localWatch));}}
+
+// Write to localStorage immediately; Supabase upsert fires in background
+function saveLocal(){{
+  localStorage.setItem('tw_local_watch',JSON.stringify(localWatch));
+  _sbFlush().catch(e=>console.warn('[SB] save failed:',e));
+}}
+
+async function _sbFlush(){{
+  if(!localWatch.length)return;
+  const rows=localWatch.map(u=>{{
+    const {{t,ticker,_table,...cache}}=u;
+    return {{session_id:SESSION_ID,ticker:ticker||t,watch_table:_table||'learning',score_cache:cache}};
+  }});
+  await sb.from('user_watchlist').upsert(rows,{{onConflict:'session_id,ticker'}});
+}}
+
+// Load from Supabase on startup and merge with localStorage
+async function _sbLoad(){{
+  try{{
+    const {{data,error}}=await sb.from('user_watchlist')
+      .select('ticker,watch_table,score_cache,added_at')
+      .eq('session_id',SESSION_ID)
+      .order('added_at',{{ascending:true}});
+    if(error)throw error;
+    if(data&&data.length>0){{
+      // Supabase is the source of truth for which stocks exist and which table they're in
+      const lsMap=new Map(localWatch.map(u=>[u.ticker||u.t,u]));
+      const merged=data.map(r=>{{
+        const local=lsMap.get(r.ticker)||{{}};
+        // Prefer local score if freshly scored (ok:true) and SB cache is empty or stale
+        const sbCache=r.score_cache||{{}};
+        const cache=(local.ok&&!sbCache.ok)?{{...local}}:{{...sbCache}};
+        return {{...cache,t:r.ticker,ticker:r.ticker,_table:r.watch_table}};
+      }});
+      // Include any localStorage items not yet in Supabase (race: just added)
+      const sbTickers=new Set(data.map(r=>r.ticker));
+      for(const u of localWatch){{
+        const tid=u.ticker||u.t;
+        if(!sbTickers.has(tid))merged.push(u);
+      }}
+      localWatch=merged;
+      localStorage.setItem('tw_local_watch',JSON.stringify(localWatch));
+      renderAllLocalRows();
+    }}else if(localWatch.length>0){{
+      // Supabase empty but localStorage has data — first-time migration
+      _sbFlush().catch(()=>{{}});
+    }}
+  }}catch(e){{
+    console.warn('[SB] load failed, using localStorage:',e);
+  }}
+}}
 
 function toggleAddBox(){{
   const box=document.getElementById('add-box');
@@ -650,31 +749,67 @@ function toggleAddBox(){{
   if(open){{document.getElementById('add-srch').focus();addFilter('');}}
 }}
 
+let _filterTimer=null;
 function addFilter(q){{
-  q=q.trim().toLowerCase();
-  const taken=new Set([...inPortfolio,...localWatch.map(x=>x.t)]);
-  const matches=q
-    ? UNIVERSE.filter(u=>!taken.has(u.t)&&(u.t.includes(q)||u.n.includes(q)||u.s.toLowerCase().includes(q)))
-    : [];
-  // also allow free-form ticker entry
-  const freeOk=q.match(/^\d{{4}}$/)&&!taken.has(q);
+  clearTimeout(_filterTimer);
+  q=q.trim();
   const res=document.getElementById('add-results');
-  if(!q){{res.innerHTML='<span style="color:var(--muted);font-size:12px;">開始輸入代號或名稱…</span>';return;}}
-  let html=matches.map(u=>`
-    <button onclick="addToWatch('${{u.t}}','${{u.n}}','${{u.s}}')"
-      style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);
-             background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;text-align:left;">
-      <span style="color:var(--blue);font-weight:600;">${{u.t}}</span> ${{u.n}}
-      <span style="color:var(--muted);font-size:11px;">· ${{u.s}}</span>
-    </button>`).join('');
-  if(freeOk) html+=`
-    <button onclick="addToWatch('${{q}}','${{q}}','—')"
-      style="padding:6px 14px;border-radius:20px;border:1px dashed var(--blue);
-             background:rgba(88,166,255,.08);color:var(--blue);font-size:12px;cursor:pointer;">
-      ＋ 直接加入代號 ${{q}}
-    </button>`;
-  if(!html) html='<span style="color:var(--muted);font-size:12px;">查無結果，可輸入4位代號直接加入</span>';
-  res.innerHTML=html;
+  if(!q){{
+    res.innerHTML='<span style="color:var(--muted);font-size:12px;">開始輸入代號或名稱…</span>';
+    return;
+  }}
+  res.innerHTML='<span style="color:var(--muted);font-size:12px;">搜尋中…</span>';
+  _filterTimer=setTimeout(()=>_doSearch(q),200);
+}}
+
+async function _doSearch(q){{
+  const res=document.getElementById('add-results');
+  const taken=new Set([...inPortfolio,...localWatch.map(x=>x.t)]);
+  try{{
+    // Try exact ticker first, then fuzzy name search
+    const isTickerQuery=/^\d{{4,6}}$/.test(q);
+    let data=[];
+    if(isTickerQuery){{
+      // Exact or prefix match on ticker
+      const {{data:d1}}=await sb.from('companies')
+        .select('ticker,name,english_name,market,industry')
+        .ilike('ticker',q+'%')
+        .limit(10);
+      data=d1||[];
+    }}
+    if(data.length<10){{
+      // Name search (Chinese or English)
+      const {{data:d2}}=await sb.from('companies')
+        .select('ticker,name,english_name,market,industry')
+        .or(`name.ilike.%${{q}}%,english_name.ilike.%${{q}}%`)
+        .limit(20-data.length);
+      // Merge, dedup by ticker
+      const seen=new Set(data.map(x=>x.ticker));
+      for(const r of (d2||[])){{ if(!seen.has(r.ticker)){{data.push(r);seen.add(r.ticker);}} }}
+    }}
+    // Filter out already-tracked tickers
+    const matches=data.filter(u=>!taken.has(u.ticker));
+    const freeOk=isTickerQuery&&q.length===4&&!taken.has(q)&&!matches.find(u=>u.ticker===q);
+    let html=matches.map(u=>`
+      <button onclick="addToWatch('${{u.ticker}}','${{u.name}}','${{u.industry||u.market}}')"
+        style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);
+               background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;text-align:left;">
+        <span style="color:var(--blue);font-weight:600;">${{u.ticker}}</span> ${{u.name}}
+        ${{u.english_name?`<span style="color:var(--muted);font-size:10px;">${{u.english_name}}</span>`:''}}
+        <span style="color:var(--muted);font-size:11px;">· ${{u.industry||u.market}}</span>
+      </button>`).join('');
+    if(freeOk) html+=`
+      <button onclick="addToWatch('${{q}}','${{q}}','—')"
+        style="padding:6px 14px;border-radius:20px;border:1px dashed var(--blue);
+               background:rgba(88,166,255,.08);color:var(--blue);font-size:12px;cursor:pointer;">
+        ＋ 直接加入代號 ${{q}}
+      </button>`;
+    if(!html) html='<span style="color:var(--muted);font-size:12px;">查無結果，可輸入4位代號直接加入</span>';
+    res.innerHTML=html;
+  }}catch(e){{
+    res.innerHTML='<span style="color:var(--muted);font-size:12px;">搜尋失敗，請稍後重試</span>';
+    console.error('Supabase search error:',e);
+  }}
 }}
 
 // ── JS helpers mirroring Python functions ────────────────────────────────
@@ -901,6 +1036,18 @@ async function addToWatch(t,n,s){{
       t,n,s,ticker:t,name:n,sector:s,type:'watch',stock_type:'general',
       _table:existingTable,
       price,change,changePct,mktCap:mktCapVal,
+      // Valuation & fundamental metrics for openDetail()
+      pe,pb,div,
+      roe:Math.round(roeVal*1000)/10,          // fraction → % with 1 decimal
+      eps:Math.round(eps0*100)/100,
+      grossMargin:Math.round(grossM*1000)/10,  // fraction → % with 1 decimal
+      opMargin:Math.round(opMval*1000)/10,
+      radar:[sc.total,
+             Math.round(sc.profit/20*100),
+             Math.round(sc.growth/20*100),
+             Math.round(sc.valuation/15*100),
+             Math.round(sc.financial/15*100),
+             Math.round(sc.market/10*100)],
       ai:sc.total,tag:sc.tag,
       fin:sc.profit,growth_s:sc.growth,
       valuation:sc.valuation,financial:sc.financial,market:sc.market,
@@ -945,6 +1092,10 @@ function removeLocal(t){{
   const si=stocks.findIndex(s=>s.ticker===t);
   if(si>=0&&stocks[si]._local)stocks.splice(si,1);
   saveLocal();renderAllLocalRows();
+  // Delete from Supabase
+  sb.from('user_watchlist').delete()
+    .eq('session_id',SESSION_ID).eq('ticker',t)
+    .then(()=>{{}}).catch(e=>console.warn('[SB] delete failed:',e));
 }}
 function moveLocal(t,toTable){{
   const idx=localWatch.findIndex(x=>(x.t||x.ticker)===t);
@@ -1143,24 +1294,37 @@ function openDetail(ticker){{
     const avg=k=>Math.round(stocks.reduce((a,x)=>a+(x[k]||0),0)/stocks.length);
     new Chart(document.getElementById('db-'+ticker),{{type:'bar',
       data:{{labels:['獲利','成長','估值','財務','市場'],datasets:[
-        {{label:s.name,data:[s.fin,s.growth_s,s.valuation,s.financial,s.market],backgroundColor:col+',0.75)',borderRadius:4}},
-        {{label:'全部均值',data:[avg('fin'),avg('growth_s'),avg('valuation'),avg('financial'),avg('market')],backgroundColor:'rgba(139,148,158,0.35)',borderRadius:4}}]}},
+        {{label:s.name,data:[s.fin,s.growth_s,s.valuation,s.financial,s.market],
+          backgroundColor:col+',0.85)',borderColor:col+',1)',borderWidth:1,borderRadius:5}},
+        {{label:'全部均值',data:[avg('fin'),avg('growth_s'),avg('valuation'),avg('financial'),avg('market')],
+          backgroundColor:'rgba(255,255,255,0.08)',borderColor:'rgba(255,255,255,0.3)',borderWidth:1,borderRadius:5}}]}},
       options:{{responsive:true,maintainAspectRatio:false,
-        scales:{{y:{{min:0,max:22,grid:{{color:'rgba(255,255,255,.05)'}},ticks:{{color:'#8b949e',font:{{size:10}}}}}},x:{{grid:{{display:false}},ticks:{{color:'#8b949e',font:{{size:10}}}}}}}},
-        plugins:{{legend:{{labels:{{color:'#8b949e',font:{{size:10}}}}}}}}}}
+        scales:{{y:{{min:0,max:22,grid:{{color:'rgba(255,255,255,.05)'}},ticks:{{color:'#8b949e',font:{{size:10}}}}}},
+                 x:{{grid:{{display:false}},ticks:{{color:'#8b949e',font:{{size:10}}}}}}}},
+        plugins:{{legend:{{labels:{{color:'#c9d1d9',font:{{size:11}},boxWidth:12,padding:16}}}}}}}}
     }});
-    const mx=[20,20,15,15,10],vl=[s.fin,s.growth_s,s.valuation,s.financial,s.market];
-    new Chart(document.getElementById('dd-'+ticker),{{type:'doughnut',
-      data:{{labels:['獲利','成長','估值','財務','市場'],datasets:[
-        {{data:vl,backgroundColor:[col+',0.8)',col+',0.65)',col+',0.5)',col+',0.38)',col+',0.25)'],borderWidth:1,borderColor:'rgba(0,0,0,.2)'}},
-        {{data:mx.map((m,i)=>m-vl[i]),backgroundColor:Array(5).fill('rgba(33,38,45,.9)'),borderWidth:0}}]}},
-      options:{{responsive:true,maintainAspectRatio:false,cutout:'58%',
-        plugins:{{legend:{{position:'right',labels:{{color:'#8b949e',font:{{size:10}},boxWidth:10}}}}}}}}
+    // 各維度達成率 — horizontal bar chart with distinct colours per dimension
+    const dimColors=['#3fb950','#58a6ff','#d2991f','#bc8cff','#39c5cf'];
+    const dimMax=[20,20,15,15,10];
+    const dimVals=[s.fin,s.growth_s,s.valuation,s.financial,s.market];
+    const dimPct=dimVals.map((v,i)=>Math.round(v/dimMax[i]*100));
+    new Chart(document.getElementById('dd-'+ticker),{{type:'bar',
+      data:{{labels:['獲利品質','成長動能','估值吸引力','財務體質','市場面'],datasets:[
+        {{label:'達成率',data:dimPct,
+          backgroundColor:dimColors.map(c=>c+'bb'),
+          borderColor:dimColors,borderWidth:1,borderRadius:6,barThickness:18}}]}},
+      options:{{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        scales:{{x:{{min:0,max:100,grid:{{color:'rgba(255,255,255,.05)'}},
+                    ticks:{{color:'#8b949e',font:{{size:10}},callback:v=>v+'%'}}}},
+                 y:{{grid:{{display:false}},ticks:{{color:'#c9d1d9',font:{{size:11}}}}}}}},
+        plugins:{{legend:{{display:false}},
+                  tooltip:{{callbacks:{{label:ctx=>`${{ctx.parsed.x}}%（${{dimVals[ctx.dataIndex]}} / ${{dimMax[ctx.dataIndex]}}）`}}}}}}}}
     }});
   }},80);
 }}
-// init local watch rows on page load
+// init local watch rows on page load, then sync from Supabase
 renderAllLocalRows();
+_sbLoad();
 </script>
 </body>
 </html>'''
