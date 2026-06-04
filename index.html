@@ -120,7 +120,7 @@ main{padding:20px 24px}
       onfocus="this.style.borderColor='var(--blue)'"
       onblur="this.style.borderColor='var(--border)'">
   </div>
-  <div style="color:var(--muted);font-size:11px;margin-left:14px;">更新：2026-06-05 01:01 TST</div>
+  <div style="color:var(--muted);font-size:11px;margin-left:14px;">更新：2026-06-05 01:32 TST</div>
 </nav>
 <main>
 <div id="p-overview">
@@ -657,15 +657,16 @@ async function _doSearch(q){
   const res=document.getElementById('add-results');
   const taken=new Set([...inPortfolio,...localWatch.map(x=>x.t)]);
   try{
-    // Try exact ticker first, then fuzzy name search
-    const isTickerQuery=/^\d{4,6}$/.test(q);
+    // Ticker prefix search for any digit-only input (1+ digits), name search otherwise
+    const isDigits=/^\d+$/.test(q);
+    const isTickerQuery=/^\d{4,6}$/.test(q); // used only for freeOk button
     let data=[];
-    if(isTickerQuery){
-      // Exact or prefix match on ticker
+    if(isDigits){
+      // Prefix match on ticker (covers partial input like "53", "233", "2330")
       const {data:d1}=await sb.from('companies')
         .select('ticker,name,english_name,market,industry')
         .ilike('ticker',q+'%')
-        .limit(10);
+        .limit(20);
       data=d1||[];
     }
     if(data.length<10){
