@@ -217,7 +217,8 @@ def make_bar(val, max_val):
 def fetch_stock(cfg):
     symbol=cfg["ticker"]+".TW"
     try:
-        info=yf.Ticker(symbol).info
+        tk=yf.Ticker(symbol)
+        info=tk.info
         price=info.get("currentPrice") or info.get("regularMarketPrice") or 0
         prev =info.get("regularMarketPreviousClose") or price
         change=round(price-prev,2)
@@ -230,6 +231,20 @@ def fetch_stock(cfg):
         elif mc>=1e6:  cap=f"{mc/1e6:.0f}百萬"
         else:           cap="—"
         ai,tag,bd=score_stock(info,cfg)
+        # Fetch 6-month daily price history for the detail chart
+        try:
+            import math as _math
+            hist=tk.history(period="6mo")
+            if not hist.empty:
+                pairs=[(d.strftime("%m/%d"),round(float(c),2))
+                       for d,c in zip(hist.index,hist["Close"])
+                       if not _math.isnan(float(c)) and float(c)>0]
+                price_dates=[p[0] for p in pairs]
+                price_closes=[p[1] for p in pairs]
+            else:
+                price_dates=[]; price_closes=[]
+        except Exception:
+            price_dates=[]; price_closes=[]
         return {
             **cfg,
             "price":round(price,2),"change":change,"changePct":chg_pct,"mktCap":cap,
@@ -251,6 +266,8 @@ def fetch_stock(cfg):
                      round(bd["valuation"]/15*100),
                      round(bd["financial"]/15*100),
                      round(bd["market"]/10*100)],
+            "price_dates":price_dates,
+            "price_closes":price_closes,
             "ai_ring":    make_ring(ai, tag),
             "ai_bar":     make_bar(ai,               100),
             "fin_bar":    make_bar(bd["profit"],       20),
@@ -266,6 +283,7 @@ def fetch_stock(cfg):
                 "pe":0,"pb":0,"roe":0,"eps":0,"div":0,"revGrowth":0,"grossMargin":0,"opMargin":0,
                 "ai":0,"tag":"—","fin":0,"growth_s":0,"valuation":0,"financial":0,"market":0,
                 "risk":0,"typeAdj":0,"radar":[0]*6,
+                "price_dates":[],"price_closes":[],
                 "ai_ring":make_ring(0,"avoid"),
                 "ai_bar":make_bar(0,100),"fin_bar":make_bar(0,20),"growth_bar":make_bar(0,20),
                 "val_bar":make_bar(0,15),"financial_bar":make_bar(0,15),"market_bar":make_bar(0,10),
@@ -990,14 +1008,17 @@ async function addToWatch(t,n,s){{
   toggleAddBox(); document.getElementById('add-srch').value='';
 
   try{{
-    // Fetch all data in parallel: TWSE for price/valuation + Finmind for fundamentals
+    // Fetch all data in parallel: TWSE for price/valuation + Finmind for fundamentals + price history
     const start2y='2022-01-01';
-    const [dayData,valData,fsData,bsData,cfData]=await Promise.all([
+    const d6m=new Date(); d6m.setMonth(d6m.getMonth()-6);
+    const start6m=d6m.toISOString().slice(0,10);
+    const [dayData,valData,fsData,bsData,cfData,priceHist]=await Promise.all([
       fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?stockNo=${{t}}&response=json`).then(r=>r.json()),
       fetch(`https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json`).then(r=>r.json()),
       fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockFinancialStatements&data_id=${{t}}&start_date=${{start2y}}`).then(r=>r.json()),
       fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockBalanceSheet&data_id=${{t}}&start_date=${{start2y}}`).then(r=>r.json()),
       fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockCashFlowsStatement&data_id=${{t}}&start_date=${{start2y}}`).then(r=>r.json()),
+      fetch(`https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${{t}}&start_date=${{start6m}}`).then(r=>r.json()).catch(()=>({{data:[]}})),
     ]);
 
     // --- Price & momentum from STOCK_DAY ---
@@ -1109,6 +1130,8 @@ async function addToWatch(t,n,s){{
       growth_bar:makeBarJS(sc.growth,20),val_bar:makeBarJS(sc.valuation,15),
       financial_bar:makeBarJS(sc.financial,15),market_bar:makeBarJS(sc.market,10),
       ai_ring:makeRingJS(sc.total,sc.tag),
+      price_dates:(priceHist.data||[]).map(r=>r.date.slice(5).replace('-','/')),
+      price_closes:(priceHist.data||[]).map(r=>r.close),
       ok:true
     }};
     const idx=localWatch.findIndex(x=>x.t===t);
@@ -1321,6 +1344,17 @@ function openDetail(ticker){{
       <div class="mc"><div class="ml">營業利益率</div><div class="mv">${{s.opMargin>0?s.opMargin+'%':'—'}}</div></div>
       <div class="mc"><div class="ml">殖利率</div><div class="mv" style="color:${{s.div>=4?'var(--green)':'var(--text)'}}">${{s.div>0?s.div+'%':'—'}}</div></div>
     </div>
+    ${{s.price_dates&&s.price_dates.length>10?`
+    <div class="sbc" style="margin-bottom:16px;" id="price-chart-sec-${{ticker}}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <h3>📈 近6個月價格走勢</h3>
+        <div style="display:flex;gap:12px;font-size:12px;color:var(--muted);">
+          <span>🟢 最高點</span><span>🔴 最低點</span>
+        </div>
+      </div>
+      <div style="height:200px;"><canvas id="dp-${{ticker}}"></canvas></div>
+      <div id="price-stats-${{ticker}}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;"></div>
+    </div>`:'<div></div>'}}
     <div class="sbc"><h3>🔬 AI 評分細項拆解</h3>
       ${{dimRows}}${{riskRow}}${{typeRow}}
       <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;align-items:center;gap:10px;">
@@ -1338,6 +1372,78 @@ function openDetail(ticker){{
         <span>⚡ 資料：Yahoo Finance（每日自動更新）</span><span>⚡ 不代表買賣建議</span><span>⚡ 循環股高峰期評分自動折扣</span>
       </div></div>`;
   setTimeout(()=>{{
+    // ── Price history chart ──────────────────────────────────────────────
+    if(s.price_dates&&s.price_dates.length>10){{
+      // Filter out any NaN/null values (yfinance occasionally returns them for partial days)
+      const rawDates=s.price_dates||[], rawCloses=s.price_closes||[];
+      const pd=[],pc=[];
+      for(let i=0;i<rawDates.length;i++){{
+        const v=rawCloses[i];
+        if(typeof v==='number'&&!isNaN(v)&&v>0){{pd.push(rawDates[i]);pc.push(v);}}
+      }}
+      const hi=Math.max(...pc), lo=Math.min(...pc);
+      const hiIdx=pc.indexOf(hi), loIdx=pc.indexOf(lo);
+      const cur=s.price||pc[pc.length-1]||0;
+      const hiDist=hi>0?((cur-hi)/hi*100).toFixed(1):'—';
+      const loDist=lo>0?((cur-lo)/lo*100).toFixed(1):'—';
+      const hiDistNum=hi>0?(cur-hi)/hi*100:0;
+      const loDistNum=lo>0?(cur-lo)/lo*100:0;
+      new Chart(document.getElementById('dp-'+ticker),{{
+        type:'line',
+        data:{{
+          labels:pd,
+          datasets:[
+            {{label:'收盤價',data:pc,borderColor:'#2563eb',
+              backgroundColor:'rgba(37,99,235,0.07)',borderWidth:2,
+              fill:true,pointRadius:0,pointHoverRadius:4,tension:0.3}},
+            {{label:'6M最高',data:pc.map((v,i)=>i===hiIdx?v:null),
+              borderColor:'#16a34a',backgroundColor:'#16a34a',
+              pointRadius:7,pointStyle:'circle',showLine:false,
+              pointBorderWidth:2,pointBorderColor:'#fff'}},
+            {{label:'6M最低',data:pc.map((v,i)=>i===loIdx?v:null),
+              borderColor:'#dc2626',backgroundColor:'#dc2626',
+              pointRadius:7,pointStyle:'circle',showLine:false,
+              pointBorderWidth:2,pointBorderColor:'#fff'}}
+          ]
+        }},
+        options:{{responsive:true,maintainAspectRatio:false,
+          scales:{{
+            x:{{grid:{{display:false}},ticks:{{color:'#78716c',font:{{size:10}},maxTicksLimit:8}}}},
+            y:{{position:'right',grid:{{color:'rgba(0,0,0,.04)'}},
+               ticks:{{color:'#78716c',font:{{size:10}},callback:v=>'$'+v}}}}
+          }},
+          plugins:{{
+            legend:{{display:false}},
+            tooltip:{{callbacks:{{
+              label:ctx=>{{
+                if(ctx.datasetIndex===1)return`🟢 6M最高 NT$${{ctx.parsed.y}}`;
+                if(ctx.datasetIndex===2)return`🔴 6M最低 NT$${{ctx.parsed.y}}`;
+                return`NT$${{ctx.parsed.y}}`;
+              }}
+            }}}}
+          }}
+        }}
+      }});
+      // Stats row below chart
+      const statCard=(label,val,sub,col)=>
+        `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${{label}}</div>
+          <div style="font-size:16px;font-weight:700;color:${{col}}">NT$${{val}}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${{sub}}</div>
+        </div>`;
+      const pctCard=(label,pct,col,note)=>
+        `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${{label}}</div>
+          <div style="font-size:16px;font-weight:700;color:${{col}}">${{pct>=0?'+':''}}${{pct}}%</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${{note}}</div>
+        </div>`;
+      if(pd.length>0)document.getElementById('price-stats-'+ticker).innerHTML=
+        statCard('6個月最高價',hi.toFixed(2),'📅 '+pd[hiIdx],'#16a34a')+
+        statCard('6個月最低價',lo.toFixed(2),'📅 '+pd[loIdx],'#dc2626')+
+        pctCard('距離高點',hiDist,hiDistNum<=-20?'#16a34a':hiDistNum<=-10?'#d97706':'#78716c','越負越接近買點')+
+        pctCard('距離低點',loDist,loDistNum>=20?'#dc2626':loDistNum>=10?'#d97706':'#78716c','越正越遠離底部');
+    }}
+    // ── Radar / bar charts ───────────────────────────────────────────────
     new Chart(document.getElementById('dr-'+ticker),{{type:'radar',
       data:{{labels:['總分','獲利','成長','估值','財務','市場'],datasets:[{{data:s.radar,
         backgroundColor:col+',0.12)',borderColor:col+',0.85)',pointBackgroundColor:col+',1)',borderWidth:2,pointRadius:4}}]}},
