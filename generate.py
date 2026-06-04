@@ -2,7 +2,7 @@
 """
 Taiwan Stock AI Scoring Dashboard — v2.2
 Scoring: 獲利品質(20)+成長動能(20)+估值(15)+財務(15)+市場面(10)+風險修正(-10)+類型加成(+5)
-Total 0-100. ≥70=買入 | 58-69=觀望 | 45-57=持有 | <45=迴避
+Total 0-100. ≥70=買入 | 58-69=觀望 | 45-57=保留 | <45=迴避
 """
 import json, sys, datetime
 from pathlib import Path
@@ -301,7 +301,7 @@ combined=main_s+watch_s
 
 def sc(s): return "a" if s>=80 else "b" if s>=70 else "c" if s>=60 else "d"
 def tag_html(t):
-    labels = {"buy":"買入","watch":"觀望","hold":"持有","avoid":"迴避","—":"—"}
+    labels = {"buy":"買入","watch":"觀望","hold":"保留","avoid":"迴避","—":"—"}
     styles = {
         "buy":   ("dcfce7","16a34a"),
         "watch": ("dbeafe","2563eb"),
@@ -477,7 +477,7 @@ main{{padding:20px 24px}}
   <div class="tleg">
     <div class="tleg-i"><div class="tdot" style="background:var(--green)"></div>≥70 買入</div>
     <div class="tleg-i"><div class="tdot" style="background:var(--blue)"></div>58–69 觀望</div>
-    <div class="tleg-i"><div class="tdot" style="background:var(--yellow)"></div>45–57 持有</div>
+    <div class="tleg-i"><div class="tdot" style="background:var(--yellow)"></div>45–57 保留</div>
     <div class="tleg-i"><div class="tdot" style="background:var(--red)"></div>&lt;45 迴避</div>
     <div class="tleg-i" style="margin-left:10px;padding-left:10px;border-left:1px solid var(--border);">
       <span class="tbadge tb-growth">成長股</span>&nbsp;
@@ -496,7 +496,7 @@ main{{padding:20px 24px}}
     <button class="fbtn" onclick="filt('wtag',this)" data-glow="active-watch">
       <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2563eb;margin-right:5px;vertical-align:middle;"></span>觀望 58-69</button>
     <button class="fbtn" onclick="filt('hold',this)" data-glow="active-hold">
-      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d97706;margin-right:5px;vertical-align:middle;"></span>持有/迴避</button>
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d97706;margin-right:5px;vertical-align:middle;"></span>保留/迴避</button>
     <span style="margin-left:auto;color:var(--muted);font-size:12px;">點擊「詳情」查看評分細項</span>
   </div>
   <div class="sh"><h2>主要持股</h2><span class="badge bm">{len(main_s)} 檔</span></div>
@@ -594,7 +594,7 @@ main{{padding:20px 24px}}
         <div style="color:var(--muted);font-size:11px;">有亮點但需等待催化劑</div></div>
       <div style="background:#fef3c7;border:1px solid rgba(217,119,6,.3);border-radius:6px;padding:12px;">
         <div style="font-size:20px;font-weight:700;color:#d97706;">45–57</div>
-        <div style="font-weight:600;margin:4px 0;">🟡 持有</div>
+        <div style="font-weight:600;margin:4px 0;">🟡 保留</div>
         <div style="color:var(--muted);font-size:11px;">普通，低優先追蹤</div></div>
       <div style="background:#fee2e2;border:1px solid rgba(220,38,38,.3);border-radius:6px;padding:12px;">
         <div style="font-size:20px;font-weight:700;color:#dc2626;">&lt;45</div>
@@ -661,7 +661,7 @@ const COL={{growth:'rgba(37,99,235',value:'rgba(22,163,74',cyclical:'rgba(217,11
             turnaround:'rgba(124,58,237',dividend:'rgba(22,163,74',general:'rgba(120,113,108'}};
 function sc(s){{return s>=70?'a':s>=58?'b':s>=45?'c':'d'}}
 function tagHtml(t){{
-  const labels={{buy:'買入',watch:'觀望',hold:'持有',avoid:'迴避','—':'—'}};
+  const labels={{buy:'買入',watch:'觀望',hold:'保留',avoid:'迴避','—':'—'}};
   const styles={{
     buy:  {{bg:'#dcfce7',col:'#16a34a'}},
     watch:{{bg:'#dbeafe',col:'#2563eb'}},
