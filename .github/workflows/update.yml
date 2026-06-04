@@ -31,6 +31,9 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Pull latest (with rebase) before committing so we never conflict
+          # with manual pushes that updated generate.py or other files
+          git pull --rebase origin main
           git add index.html
           git diff --cached --quiet || git commit -m "chore: daily stock update $(date -u +'%Y-%m-%d')"
           git push
