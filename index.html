@@ -120,7 +120,7 @@ main{padding:20px 24px}
       onfocus="this.style.borderColor='var(--blue)'"
       onblur="this.style.borderColor='var(--border)'">
   </div>
-  <div style="color:var(--muted);font-size:11px;margin-left:14px;">更新：2026-06-05 02:05 TST</div>
+  <div style="color:var(--muted);font-size:11px;margin-left:14px;">更新：2026-06-05 02:13 TST</div>
 </nav>
 <main>
 <div id="p-overview">
@@ -383,8 +383,28 @@ main{padding:20px 24px}
 </div>
 
 <div id="p-comparison" style="display:none">
-  <div class="sh" style="margin-bottom:20px"><h2>AI 六維雷達比較</h2></div>
-  <div class="rgrid" id="radar-grid"></div>
+  <div class="sh" style="margin-bottom:4px"><h2>AI 六維雷達比較</h2></div>
+  <div id="radar-sec-main">
+    <div class="sw-hdr" style="margin:16px 0 10px;">
+      <span style="font-weight:600;font-size:14px;">主要持股</span>
+      <span class="badge bm" id="rc-badge-main" style="margin-left:8px;">—</span>
+    </div>
+    <div class="rgrid" id="radar-main"></div>
+  </div>
+  <div id="radar-sec-watch">
+    <div class="sw-hdr" style="margin:20px 0 10px;">
+      <span style="font-weight:600;font-size:14px;">觀望清單</span>
+      <span class="badge bw" id="rc-badge-watch" style="margin-left:8px;">—</span>
+    </div>
+    <div class="rgrid" id="radar-watch"></div>
+  </div>
+  <div id="radar-sec-learn">
+    <div class="sw-hdr" style="margin:20px 0 10px;">
+      <span style="font-weight:600;font-size:14px;">學習清單</span>
+      <span class="badge" style="background:#f0ebe3;color:#78716c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:8px;" id="rc-badge-learn">—</span>
+    </div>
+    <div class="rgrid" id="radar-learn"></div>
+  </div>
 </div>
 
 <div id="p-legend" style="display:none">
@@ -624,6 +644,8 @@ async function _sbLoad(){
       localWatch=merged;
       localStorage.setItem('tw_local_watch',JSON.stringify(localWatch));
       renderAllLocalRows();
+      // Re-run radar in case comparison tab was open before load completed
+      if(document.getElementById('p-comparison').style.display!=='none')renderRadar();
     }else if(localWatch.length>0){
       // Supabase empty but localStorage has data — first-time migration
       _sbFlush().catch(()=>{});
@@ -1109,28 +1131,58 @@ function renderAllLocalRows(){
   localWatch.filter(u=>u.ok&&u.ticker).forEach(u=>{
     if(!stocks.find(s=>s.ticker===u.ticker))
       stocks.push({...u,type:u._table||'learning',_local:true});
+    else{
+      // Update existing entry with fresh data (e.g. after re-fetch)
+      const idx=stocks.findIndex(s=>s.ticker===u.ticker);
+      if(idx>=0&&stocks[idx]._local)stocks[idx]={...u,type:u._table||'learning',_local:true};
+    }
   });
+  // If comparison tab visible, render any new stocks added since last render
+  if(document.getElementById('p-comparison')&&document.getElementById('p-comparison').style.display!=='none')
+    renderRadar();
 }
-let radarDone=false;
+const radarRendered=new Set();
 function renderRadar(){
-  if(radarDone)return;radarDone=true;
-  const g=document.getElementById('radar-grid');
+  // Incremental: only add cards for stocks not yet rendered
+  let newMain=0,newWatch=0,newLearn=0;
   stocks.forEach(s=>{
+    if(radarRendered.has(s.ticker))return;
+    // Skip stocks without valid radar data
+    if(!s.radar||!Array.isArray(s.radar)||s.radar.every(v=>!v))return;
+    radarRendered.add(s.ticker);
     const col=COL[s.stock_type||'general'];
+    // Determine which section this stock belongs to
+    const isMain=s.type==='main'&&!s._local;
+    const isLearn=s._table==='learning'||s._local||(s.type==='learning');
+    const gridId=isMain?'radar-main':isLearn?'radar-learn':'radar-watch';
+    const g=document.getElementById(gridId);
+    if(!g)return;
+    if(isMain)newMain++; else if(isLearn)newLearn++; else newWatch++;
     const d=document.createElement('div');d.className='rc';
     d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
       <div><div style="font-size:13px;font-weight:600;">${s.name} <span style="color:var(--muted);font-size:11px;">${s.ticker}</span></div>
-      <div style="margin-top:3px;display:flex;gap:4px;">${tBadge(s.stock_type||'general')}&nbsp;<span style="color:var(--muted);font-size:10px;">${s.sector}</span></div></div>
+      <div style="margin-top:3px;display:flex;gap:4px;">${tBadge(s.stock_type||'general')}&nbsp;<span style="color:var(--muted);font-size:10px;">${s.sector||''}</span></div></div>
       <div style="text-align:right;"><div class="sn score-${sc(s.ai)}" style="font-size:20px;">${s.ai}</div>${tagHtml(s.tag)}</div>
     </div><canvas id="rc-${s.ticker}" height="210"></canvas>`;
     g.appendChild(d);
-    setTimeout(()=>new Chart(document.getElementById('rc-'+s.ticker),{type:'radar',
-      data:{labels:['總分','獲利','成長','估值','財務','市場'],datasets:[{data:s.radar,
-        backgroundColor:col+',0.12)',borderColor:col+',0.8)',pointBackgroundColor:col+',1)',borderWidth:2,pointRadius:3}]},
-      options:{responsive:true,scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:'rgba(0,0,0,.07)'},
-        pointLabels:{color:'#78716c',font:{size:10}}}},plugins:{legend:{display:false}}}
-    }),60);
+    setTimeout(()=>{
+      const cvs=document.getElementById('rc-'+s.ticker);
+      if(!cvs)return;
+      new Chart(cvs,{type:'radar',
+        data:{labels:['總分','獲利','成長','估值','財務','市場'],datasets:[{data:s.radar,
+          backgroundColor:col+',0.12)',borderColor:col+',0.8)',pointBackgroundColor:col+',1)',borderWidth:2,pointRadius:3}]},
+        options:{responsive:true,scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:'rgba(0,0,0,.07)'},
+          pointLabels:{color:'#78716c',font:{size:10}}}},plugins:{legend:{display:false}}}
+      });
+    },60);
   });
+  // Update section badges
+  const bMain=document.getElementById('rc-badge-main');
+  const bWatch=document.getElementById('rc-badge-watch');
+  const bLearn=document.getElementById('rc-badge-learn');
+  if(bMain)bMain.textContent=document.getElementById('radar-main').children.length+' 檔';
+  if(bWatch)bWatch.textContent=document.getElementById('radar-watch').children.length+' 檔';
+  if(bLearn)bLearn.textContent=document.getElementById('radar-learn').children.length+' 檔';
 }
 function openDetail(ticker){
   const s=stocks.find(x=>x.ticker===ticker);if(!s)return;
