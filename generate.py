@@ -175,26 +175,42 @@ def score_stock(info, cfg):
     tag="buy" if total>=70 else "watch" if total>=58 else "hold" if total>=45 else "avoid"
     return total,tag,bd
 
-def make_bar(val, max_val):
-    """Inline CSS progress bar — slim, rounded, colour-coded by proportion."""
-    pct = round(val / max_val * 100) if max_val > 0 else 0
-    if   pct >= 70: col = "#3fb950"   # green  (≥70 = buy)
-    elif pct >= 58: col = "#58a6ff"   # blue   (58-69 = watch)
-    elif pct >= 45: col = "#d2991f"   # yellow (45-57 = hold)
-    else:           col = "#f85149"   # red    (<45  = avoid)
-    lbl = f"{val}" if max_val == 100 else f"{val}/{max_val}"
-    bw  = 68 if max_val == 100 else 50   # bar width px
-    bh  = 6  if max_val == 100 else 4    # bar height px
-    br  = 3  if max_val == 100 else 2    # border-radius px
-    fs  = "13px" if max_val == 100 else "11px"
-    fw  = "700"  if max_val == 100 else "600"
+def make_ring(score, tag):
+    """SVG circular progress ring for the AI total score (44×44px)."""
+    tag_colors = {"buy": "#16a34a", "watch": "#2563eb", "hold": "#d97706", "avoid": "#dc2626"}
+    col = tag_colors.get(tag, "#78716c")
+    circ = 113.1  # 2π×18
+    dash_len = round(score / 100 * circ, 1)
+    gap_len  = round(circ - dash_len, 1)
     return (
-        f'<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">'
-        f'<div style="width:{bw}px;height:{bh}px;border-radius:{br}px;'
-        f'background:#30363d;overflow:hidden;flex-shrink:0;">'
-        f'<div style="width:{pct}%;height:100%;background:{col};border-radius:{br}px;"></div>'
+        f'<div style="position:relative;width:44px;height:44px;flex-shrink:0;">'
+        f'<svg width="44" height="44" style="transform:rotate(-90deg)">'
+        f'<circle cx="22" cy="22" r="18" fill="none" stroke="#e5ded5" stroke-width="3.5"/>'
+        f'<circle cx="22" cy="22" r="18" fill="none" stroke="{col}" stroke-width="3.5"'
+        f' stroke-linecap="round"'
+        f' stroke-dasharray="{dash_len} {gap_len}"/>'
+        f'</svg>'
+        f'<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
+        f'font-size:13px;font-weight:700;color:{col};">{score}</span>'
         f'</div>'
-        f'<span style="color:{col};font-size:{fs};font-weight:{fw};min-width:28px;">{lbl}</span>'
+    )
+
+def make_bar(val, max_val):
+    """Score cell with 'val /max' notation and thin coloured bar underneath."""
+    pct = round(val / max_val * 100) if max_val > 0 else 0
+    if   pct >= 70: col = "#16a34a"
+    elif pct >= 58: col = "#2563eb"
+    elif pct >= 45: col = "#d97706"
+    else:           col = "#dc2626"
+    return (
+        f'<div style="text-align:center;min-width:46px;">'
+        f'<div style="white-space:nowrap;">'
+        f'<span style="color:{col};font-weight:700;font-size:12px;">{val}</span>'
+        f'<span style="color:#78716c;font-size:11px;"> /{max_val}</span>'
+        f'</div>'
+        f'<div style="height:3px;border-radius:2px;background:#e5ded5;margin-top:3px;overflow:hidden;">'
+        f'<div style="width:{pct}%;height:100%;background:{col};border-radius:2px;"></div>'
+        f'</div>'
         f'</div>'
     )
 
@@ -235,6 +251,7 @@ def fetch_stock(cfg):
                      round(bd["valuation"]/15*100),
                      round(bd["financial"]/15*100),
                      round(bd["market"]/10*100)],
+            "ai_ring":    make_ring(ai, tag),
             "ai_bar":     make_bar(ai,               100),
             "fin_bar":    make_bar(bd["profit"],       20),
             "growth_bar": make_bar(bd["growth"],       20),
@@ -249,6 +266,7 @@ def fetch_stock(cfg):
                 "pe":0,"pb":0,"roe":0,"eps":0,"div":0,"revGrowth":0,"grossMargin":0,"opMargin":0,
                 "ai":0,"tag":"—","fin":0,"growth_s":0,"valuation":0,"financial":0,"market":0,
                 "risk":0,"typeAdj":0,"radar":[0]*6,
+                "ai_ring":make_ring(0,"avoid"),
                 "ai_bar":make_bar(0,100),"fin_bar":make_bar(0,20),"growth_bar":make_bar(0,20),
                 "val_bar":make_bar(0,15),"financial_bar":make_bar(0,15),"market_bar":make_bar(0,10),
                 "ok":False}
@@ -259,13 +277,25 @@ for cfg in stocks_cfg:
     print(f"  {cfg['ticker']} {cfg['name']}...")
     stocks.append(fetch_stock(cfg))
 
-main_s =[s for s in stocks if s["type"]=="main"]
-watch_s=[s for s in stocks if s["type"]=="watch"]
+main_s  =[s for s in stocks if s["type"]=="main"]
+watch_s =[s for s in stocks if s["type"]=="watch"]
+combined=main_s+watch_s
 
 def sc(s): return "a" if s>=80 else "b" if s>=70 else "c" if s>=60 else "d"
 def tag_html(t):
-    m={"buy":"買入","watch":"觀望","hold":"持有","avoid":"迴避","—":"—"}
-    return f'<span class="tag tag-{t}">{m.get(t,t)}</span>'
+    labels = {"buy":"買入","watch":"觀望","hold":"持有","avoid":"迴避","—":"—"}
+    styles = {
+        "buy":   ("dcfce7","16a34a"),
+        "watch": ("dbeafe","2563eb"),
+        "hold":  ("fef3c7","d97706"),
+        "avoid": ("fee2e2","dc2626"),
+    }
+    label = labels.get(t, t)
+    if t in styles:
+        bg, col = styles[t]
+        return (f'<span style="padding:3px 10px;border-radius:20px;background:#{bg};'
+                f'color:#{col};font-size:11px;font-weight:600;">● {label}</span>')
+    return f'<span style="padding:3px 10px;border-radius:20px;background:#f0ebe3;color:#78716c;font-size:11px;font-weight:600;">{label}</span>'
 def ch_html(v,p):
     c="pos" if v>=0 else "neg";s="+" if v>=0 else ""
     return f'<span class="ch-{c}">{s}{v:.2f} ({s}{p:.2f}%)</span>'
@@ -287,7 +317,7 @@ def table_rows(lst):
               {type_badge(s.get("stock_type","general"))}
               <span style="color:var(--muted);font-size:10px;">&nbsp;{s["sector"]}</span>
             </div></td>
-          <td>{s["ai_bar"]}</td><td>{s["fin_bar"]}</td>
+          <td>{s["ai_ring"]}</td><td>{s["fin_bar"]}</td>
           <td>{s["growth_bar"]}</td><td>{s["val_bar"]}</td>
           <td>{s["financial_bar"]}</td><td>{s["market_bar"]}</td>
           <td style="font-weight:600;">NT${s["price"]:.2f}</td>
@@ -310,9 +340,9 @@ html=f'''<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{{--bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--text:#e6edf3;
-      --muted:#8b949e;--green:#3fb950;--red:#f85149;--yellow:#d29922;
-      --blue:#58a6ff;--purple:#bc8cff;--accent:#1f6feb}}
+:root{{--bg:#f7f3ed;--bg2:#ffffff;--bg3:#f0ebe3;--border:#e5ded5;--text:#1c1917;
+      --fg:#1c1917;--muted:#78716c;--green:#16a34a;--red:#dc2626;--yellow:#d97706;
+      --blue:#2563eb;--purple:#7c3aed;--accent:#2563eb}}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px}}
 nav{{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;
@@ -321,53 +351,55 @@ nav{{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;
 .ntab{{padding:6px 14px;border-radius:6px;cursor:pointer;color:var(--muted);font-size:13px;
        border:1px solid transparent;transition:all .15s}}
 .ntab:hover{{color:var(--text);background:var(--bg3)}}
-.ntab.active{{color:var(--blue);background:rgba(88,166,255,.1);border-color:rgba(88,166,255,.3)}}
+.ntab.active{{color:var(--blue);background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.3)}}
 .spacer{{flex:1}}
 main{{padding:20px 24px}}
 .sh{{display:flex;align-items:center;gap:10px;margin-bottom:14px}}
 .sh h2{{font-size:16px;font-weight:600}}
 .badge{{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}}
-.bm{{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3)}}
-.bw{{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid rgba(210,153,34,.3)}}
+.bm{{background:rgba(22,163,74,.12);color:var(--green);border:1px solid rgba(22,163,74,.3)}}
+.bw{{background:rgba(37,99,235,.12);color:var(--blue);border:1px solid rgba(37,99,235,.3)}}
 .fbar{{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center}}
 .fbtn{{padding:5px 12px;border-radius:20px;border:1px solid var(--border);
        background:var(--bg2);color:var(--muted);cursor:pointer;font-size:12px;transition:all .2s}}
 .fbtn:hover{{border-color:var(--blue);color:var(--blue)}}
 .fbtn.active{{background:var(--accent);border-color:var(--accent);color:#fff}}
-.fbtn.active-buy{{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.6);color:#3fb950;
-  box-shadow:0 0 10px rgba(63,185,80,.35),inset 0 0 8px rgba(63,185,80,.08)}}
-.fbtn.active-watch{{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.6);color:#58a6ff;
-  box-shadow:0 0 10px rgba(88,166,255,.35),inset 0 0 8px rgba(88,166,255,.08)}}
-.fbtn.active-hold{{background:rgba(210,153,31,.12);border-color:rgba(210,153,31,.6);color:#d2991f;
-  box-shadow:0 0 10px rgba(210,153,31,.35),inset 0 0 8px rgba(210,153,31,.08)}}
+.fbtn.active-buy{{background:rgba(22,163,74,.1);border-color:rgba(22,163,74,.5);color:#16a34a;
+  box-shadow:0 0 8px rgba(22,163,74,.25)}}
+.fbtn.active-watch{{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.5);color:#2563eb;
+  box-shadow:0 0 8px rgba(37,99,235,.25)}}
+.fbtn.active-hold{{background:rgba(217,119,6,.1);border-color:rgba(217,119,6,.5);color:#d97706;
+  box-shadow:0 0 8px rgba(217,119,6,.25)}}
 .sw{{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
      overflow:hidden;margin-bottom:28px;overflow-x:auto}}
 .sw table{{width:100%;border-collapse:collapse;min-width:920px}}
-.sw th{{background:var(--bg3);color:var(--muted);font-size:10px;font-weight:600;
+.sw th{{background:#f0ebe3;color:var(--muted);font-size:10px;font-weight:600;
         text-transform:uppercase;letter-spacing:.4px;padding:9px 12px;
         text-align:left;border-bottom:1px solid var(--border)}}
-.sw td{{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}}
+.sw td{{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;background:#ffffff}}
 .sw tr:last-child td{{border-bottom:none}}
-.sw tr:hover td{{background:rgba(255,255,255,.025)}}
+.sw tr:hover td{{background:#faf8f5}}
 .cn{{font-weight:600;font-size:13px}}.tic{{color:var(--muted);font-size:11px;margin-left:5px}}
 .tbadge{{padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}}
-.tb-growth{{background:rgba(88,166,255,.15);color:var(--blue)}}
-.tb-value{{background:rgba(63,185,80,.15);color:var(--green)}}
-.tb-cyclical{{background:rgba(210,153,34,.15);color:var(--yellow)}}
-.tb-turnaround{{background:rgba(188,140,255,.15);color:var(--purple)}}
-.tb-dividend,.tb-general{{background:rgba(139,148,158,.15);color:var(--muted)}}
+.tb-growth{{background:rgba(37,99,235,.1);color:var(--blue)}}
+.tb-value{{background:rgba(22,163,74,.1);color:var(--green)}}
+.tb-cyclical{{background:rgba(217,119,6,.1);color:var(--yellow)}}
+.tb-turnaround{{background:rgba(124,58,237,.1);color:var(--purple)}}
+.tb-dividend,.tb-general{{background:rgba(120,113,108,.1);color:var(--muted)}}
 .sbw{{border-radius:5px;padding:4px 8px;min-width:90px}}
-.score-a{{color:var(--green)}}.score-b{{color:var(--blue)}}.score-c{{color:var(--yellow)}}.score-d{{color:var(--red)}}
+.score-a{{color:#16a34a}}.score-b{{color:#2563eb}}.score-c{{color:#d97706}}.score-d{{color:#dc2626}}
+.score-buy{{color:#16a34a}}.score-watch{{color:#2563eb}}.score-hold{{color:#d97706}}.score-avoid{{color:#dc2626}}
 .sn{{font-size:13px;font-weight:700;white-space:nowrap}}.sn-max{{font-size:10px;font-weight:400;opacity:.6}}
 .ch-pos{{color:var(--green)}}.ch-neg{{color:var(--red)}}
-.tag{{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700}}
-.tag-buy{{background:rgba(63,185,80,.2);color:var(--green)}}
-.tag-watch{{background:rgba(88,166,255,.2);color:var(--blue)}}
-.tag-hold{{background:rgba(210,153,34,.2);color:var(--yellow)}}
-.tag-avoid{{background:rgba(248,81,73,.2);color:var(--red)}}
+.tag{{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}}
+.tag-buy{{background:#dcfce7;color:#16a34a}}
+.tag-watch{{background:#dbeafe;color:#2563eb}}
+.tag-hold{{background:#fef3c7;color:#d97706}}
+.tag-avoid{{background:#fee2e2;color:#dc2626}}
+.tag-empty{{background:#f0ebe3;color:#78716c}}
 .drill{{padding:4px 10px;border-radius:5px;border:1px solid var(--border);
-        background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s}}
-.drill:hover{{border-color:var(--blue);color:var(--blue);background:rgba(88,166,255,.08)}}
+        background:var(--bg3);color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s}}
+.drill:hover{{border-color:var(--blue);color:var(--blue);background:rgba(37,99,235,.06)}}
 .mgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-bottom:20px}}
 .mc{{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px}}
 .ml{{color:var(--muted);font-size:11px;margin-bottom:5px}}
@@ -387,16 +419,16 @@ main{{padding:20px 24px}}
 .ch{{position:relative;height:200px}}
 .rgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}}
 .rc{{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px}}
-.ain{{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}}
+.ain{{background:#ffffff;border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}}
 .ain h3{{font-size:13px;font-weight:600;margin-bottom:8px}}
 .tleg{{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px}}
 .tleg-i{{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}}
 .tdot{{width:10px;height:10px;border-radius:50%}}
-.back{{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);
+.back{{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:#ffffff;
        color:var(--text);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px}}
 .back:hover{{border-color:var(--blue);color:var(--blue)}}
 ::-webkit-scrollbar{{width:6px;height:6px}}
-::-webkit-scrollbar-track{{background:var(--bg)}}
+::-webkit-scrollbar-track{{background:var(--bg3)}}
 ::-webkit-scrollbar-thumb{{background:var(--border);border-radius:3px}}
 @media(max-width:900px){{.crow{{grid-template-columns:1fr 1fr}}}}
 @media(max-width:600px){{.crow{{grid-template-columns:1fr}};main{{padding:14px}};nav{{padding:0 12px}}}}
@@ -438,18 +470,15 @@ main{{padding:20px 24px}}
   </div>
   <div class="fbar">
     <span style="color:var(--muted);font-size:12px;">篩選：</span>
-    <button class="fbtn active" onclick="filt('all',this)">全部</button>
-    <button class="fbtn" onclick="filt('main',this)">主要持股</button>
-    <button class="fbtn" onclick="filt('watch',this)">觀望清單</button>
+    <button class="fbtn active" onclick="filt('all',this)">全部 {len(combined)}</button>
+    <button class="fbtn" onclick="filt('main',this)">主要持股 {len(main_s)}</button>
+    <button class="fbtn" onclick="filt('watch',this)">觀望清單 {len(watch_s)}</button>
     <button class="fbtn" onclick="filt('buy',this)" data-glow="active-buy">
-      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3fb950;
-        box-shadow:0 0 5px #3fb950;margin-right:5px;vertical-align:middle;"></span>買入 ≥70</button>
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-right:5px;vertical-align:middle;"></span>買入 ≥70</button>
     <button class="fbtn" onclick="filt('wtag',this)" data-glow="active-watch">
-      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#58a6ff;
-        box-shadow:0 0 5px #58a6ff;margin-right:5px;vertical-align:middle;"></span>觀望 58-69</button>
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2563eb;margin-right:5px;vertical-align:middle;"></span>觀望 58-69</button>
     <button class="fbtn" onclick="filt('hold',this)" data-glow="active-hold">
-      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d2991f;
-        box-shadow:0 0 5px #d2991f;margin-right:5px;vertical-align:middle;"></span>持有/迴避</button>
+      <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d97706;margin-right:5px;vertical-align:middle;"></span>持有/迴避</button>
     <span style="margin-left:auto;color:var(--muted);font-size:12px;">點擊「詳情」查看評分細項</span>
   </div>
   <div class="sh"><h2>主要持股</h2><span class="badge bm">{len(main_s)} 檔</span></div>
@@ -537,20 +566,20 @@ main{{padding:20px 24px}}
   </div>
   <div class="ain" style="max-width:920px;margin-top:4px;"><h3>📊 分數門檻</h3>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px;">
-      <div style="background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-radius:6px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:var(--green);">≥70</div>
+      <div style="background:#dcfce7;border:1px solid rgba(22,163,74,.3);border-radius:6px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#16a34a;">≥70</div>
         <div style="font-weight:600;margin:4px 0;">🟢 買入</div>
         <div style="color:var(--muted);font-size:11px;">體質優良，值得積極布局</div></div>
-      <div style="background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);border-radius:6px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:var(--blue);">58–69</div>
+      <div style="background:#dbeafe;border:1px solid rgba(37,99,235,.3);border-radius:6px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#2563eb;">58–69</div>
         <div style="font-weight:600;margin:4px 0;">🔵 觀望</div>
         <div style="color:var(--muted);font-size:11px;">有亮點但需等待催化劑</div></div>
-      <div style="background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.2);border-radius:6px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:var(--yellow);">45–57</div>
+      <div style="background:#fef3c7;border:1px solid rgba(217,119,6,.3);border-radius:6px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#d97706;">45–57</div>
         <div style="font-weight:600;margin:4px 0;">🟡 持有</div>
         <div style="color:var(--muted);font-size:11px;">普通，低優先追蹤</div></div>
-      <div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2);border-radius:6px;padding:12px;">
-        <div style="font-size:20px;font-weight:700;color:var(--red);">&lt;45</div>
+      <div style="background:#fee2e2;border:1px solid rgba(220,38,38,.3);border-radius:6px;padding:12px;">
+        <div style="font-size:20px;font-weight:700;color:#dc2626;">&lt;45</div>
         <div style="font-weight:600;margin:4px 0;">🔴 迴避</div>
         <div style="color:var(--muted);font-size:11px;">風險大於機會</div></div>
     </div>
@@ -610,16 +639,28 @@ main{{padding:20px 24px}}
 <script>
 const stocks={stocks_json};
 const inPortfolio=new Set(stocks.map(s=>s.ticker));
-const COL={{growth:'rgba(88,166,255',value:'rgba(63,185,80',cyclical:'rgba(210,153,34',
-            turnaround:'rgba(188,140,255',dividend:'rgba(63,185,80',general:'rgba(139,148,158'}};
+const COL={{growth:'rgba(37,99,235',value:'rgba(22,163,74',cyclical:'rgba(217,119,6',
+            turnaround:'rgba(124,58,237',dividend:'rgba(22,163,74',general:'rgba(120,113,108'}};
 function sc(s){{return s>=70?'a':s>=58?'b':s>=45?'c':'d'}}
-function tagHtml(t){{const m={{buy:'買入',watch:'觀望',hold:'持有',avoid:'迴避','—':'—'}};return`<span class="tag tag-${{t}}">${{m[t]||t}}</span>`;}}
+function tagHtml(t){{
+  const labels={{buy:'買入',watch:'觀望',hold:'持有',avoid:'迴避','—':'—'}};
+  const styles={{
+    buy:  {{bg:'#dcfce7',col:'#16a34a'}},
+    watch:{{bg:'#dbeafe',col:'#2563eb'}},
+    hold: {{bg:'#fef3c7',col:'#d97706'}},
+    avoid:{{bg:'#fee2e2',col:'#dc2626'}},
+  }};
+  const label=labels[t]||t;
+  const s=styles[t];
+  if(s)return`<span style="padding:3px 10px;border-radius:20px;background:${{s.bg}};color:${{s.col}};font-size:11px;font-weight:600;">● ${{label}}</span>`;
+  return`<span style="padding:3px 10px;border-radius:20px;background:#f0ebe3;color:#78716c;font-size:11px;font-weight:600;">${{label}}</span>`;
+}}
 function chHtml(v,p){{return`<span class="ch-${{v>=0?'pos':'neg'}}">${{v>=0?'+':''}}${{v.toFixed(2)}} (${{v>=0?'+':''}}${{p.toFixed(2)}}%)</span>`;}}
 function sBar(s,w,mx){{
   mx=mx||100;
   const pct=Math.round(s/mx*100);
-  const clr=pct>=70?'63,185,80':pct>=50?'88,166,255':pct>=30?'210,153,34':'248,81,73';
-  const bg=`linear-gradient(to right,rgba(${{clr}},.35) ${{pct}}%,rgba(48,54,61,.6) ${{pct}}%)`;
+  const clr=pct>=70?'22,163,74':pct>=50?'37,99,235':pct>=30?'217,119,6':'220,38,38';
+  const bg=`linear-gradient(to right,rgba(${{clr}},.15) ${{pct}}%,rgba(229,222,213,.5) ${{pct}}%)`;
   const label=mx===100?`${{s}}`:`${{s}}<span class="sn-max">/${{mx}}</span> <span class="sn-max" style="opacity:.7">${{pct}}%</span>`;
   const txtclr=pct>=70?'var(--green)':pct>=50?'var(--blue)':pct>=30?'var(--yellow)':'var(--red)';
   return`<div class="sbw" style="background:${{bg}}"><span class="sn" style="color:${{txtclr}}">${{label}}</span></div>`;
@@ -631,7 +672,7 @@ function renderTbody(id,list){{
   tb.innerHTML=list.map(s=>`<tr>
     <td><span class="cn">${{s.name}}</span><span class="tic">${{s.ticker}}</span>
         <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">${{tBadge(s.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{s.sector}}</span></div></td>
-    <td>${{s.ai_bar}}</td><td>${{s.fin_bar}}</td><td>${{s.growth_bar}}</td>
+    <td>${{makeRingJS(s.ai,s.tag)}}</td><td>${{s.fin_bar}}</td><td>${{s.growth_bar}}</td>
     <td>${{s.val_bar}}</td><td>${{s.financial_bar}}</td><td>${{s.market_bar}}</td>
     <td style="font-weight:600;">NT$${{s.price.toFixed(2)}}</td><td>${{chHtml(s.change,s.changePct)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{s.mktCap}}</td>
@@ -815,14 +856,25 @@ async function _doSearch(q){{
 // ── JS helpers mirroring Python functions ────────────────────────────────
 function makeBarJS(val,mx){{
   const pct=mx>0?Math.round(val/mx*100):0;
-  const col=pct>=70?'#3fb950':pct>=58?'#58a6ff':pct>=45?'#d2991f':'#f85149';
-  const lbl=mx===100?`${{val}}`:`${{val}}/${{mx}}`;
-  const bw=mx===100?68:50,bh=mx===100?6:4,br=mx===100?3:2;
-  const fs=mx===100?'13px':'11px',fw=mx===100?'700':'600';
-  return `<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">`
-    +`<div style="width:${{bw}}px;height:${{bh}}px;border-radius:${{br}}px;background:#30363d;overflow:hidden;flex-shrink:0;">`
-    +`<div style="width:${{pct}}%;height:100%;background:${{col}};border-radius:${{br}}px;"></div></div>`
-    +`<span style="color:${{col}};font-size:${{fs}};font-weight:${{fw}};min-width:28px;">${{lbl}}</span></div>`;
+  const col=pct>=70?'#16a34a':pct>=58?'#2563eb':pct>=45?'#d97706':'#dc2626';
+  return `<div style="text-align:center;min-width:46px;">`
+    +`<div style="white-space:nowrap;">`
+    +`<span style="color:${{col}};font-weight:700;font-size:12px;">${{val}}</span>`
+    +`<span style="color:#78716c;font-size:11px;"> /${{mx}}</span></div>`
+    +`<div style="height:3px;border-radius:2px;background:#e5ded5;margin-top:3px;overflow:hidden;">`
+    +`<div style="width:${{pct}}%;height:100%;background:${{col}};border-radius:2px;"></div></div></div>`;
+}}
+function makeRingJS(score,tag){{
+  const tagColors={{buy:'#16a34a',watch:'#2563eb',hold:'#d97706',avoid:'#dc2626'}};
+  const col=tagColors[tag]||'#78716c';
+  const circ=113.1,dash=Math.round(score/100*circ*10)/10,gap=Math.round((circ-dash)*10)/10;
+  return `<div style="position:relative;width:44px;height:44px;flex-shrink:0;">`
+    +`<svg width="44" height="44" style="transform:rotate(-90deg)">`
+    +`<circle cx="22" cy="22" r="18" fill="none" stroke="#e5ded5" stroke-width="3.5"/>`
+    +`<circle cx="22" cy="22" r="18" fill="none" stroke="${{col}}" stroke-width="3.5"`
+    +` stroke-linecap="round" stroke-dasharray="${{dash}} ${{gap}}"/></svg>`
+    +`<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);`
+    +`font-size:13px;font-weight:700;color:${{col}};">${{score}}</span></div>`;
 }}
 function fmtCap(v){{
   if(!v)return'—';
@@ -1055,6 +1107,7 @@ async function addToWatch(t,n,s){{
       ai_bar:makeBarJS(sc.total,100),fin_bar:makeBarJS(sc.profit,20),
       growth_bar:makeBarJS(sc.growth,20),val_bar:makeBarJS(sc.valuation,15),
       financial_bar:makeBarJS(sc.financial,15),market_bar:makeBarJS(sc.market,10),
+      ai_ring:makeRingJS(sc.total,sc.tag),
       ok:true
     }};
     const idx=localWatch.findIndex(x=>x.t===t);
@@ -1112,7 +1165,7 @@ function localRowHtml(u, tbl){{
     style="padding:3px 8px;border-radius:5px;border:1px solid ${{col}};background:transparent;
     color:${{col}};font-size:11px;cursor:pointer;white-space:nowrap;">${{label}}</button>`;
   const emptyBar=(w,h,r)=>`<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
-    <div style="width:${{w}}px;height:${{h}}px;border-radius:${{r}}px;background:#30363d;flex-shrink:0;opacity:.4;"></div>
+    <div style="width:${{w}}px;height:${{h}}px;border-radius:${{r}}px;background:#e5ded5;flex-shrink:0;opacity:.6;"></div>
     <span style="color:var(--muted);font-size:11px;">-</span></div>`;
 
   // Action buttons depend on which table the row lives in
@@ -1164,7 +1217,7 @@ function localRowHtml(u, tbl){{
       <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
         ${{tBadge(u.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{u.sector||u.s}}</span>
       </div></td>
-    <td>${{u.ai_bar}}</td><td>${{u.fin_bar}}</td><td>${{u.growth_bar}}</td>
+    <td>${{makeRingJS(u.ai,u.tag)}}</td><td>${{u.fin_bar}}</td><td>${{u.growth_bar}}</td>
     <td>${{u.val_bar}}</td><td>${{u.financial_bar}}</td><td>${{u.market_bar}}</td>
     <td style="font-weight:600;">NT$${{(u.price||0).toFixed(2)}}</td>
     <td>${{chHtml(u.change||0,u.changePct||0)}}</td>
@@ -1218,8 +1271,8 @@ function renderRadar(){{
     setTimeout(()=>new Chart(document.getElementById('rc-'+s.ticker),{{type:'radar',
       data:{{labels:['總分','獲利','成長','估值','財務','市場'],datasets:[{{data:s.radar,
         backgroundColor:col+',0.12)',borderColor:col+',0.8)',pointBackgroundColor:col+',1)',borderWidth:2,pointRadius:3}}]}},
-      options:{{responsive:true,scales:{{r:{{min:0,max:100,ticks:{{display:false}},grid:{{color:'rgba(255,255,255,.07)'}},
-        pointLabels:{{color:'#8b949e',font:{{size:10}}}}}}}},plugins:{{legend:{{display:false}}}}}}
+      options:{{responsive:true,scales:{{r:{{min:0,max:100,ticks:{{display:false}},grid:{{color:'rgba(0,0,0,.07)'}},
+        pointLabels:{{color:'#78716c',font:{{size:10}}}}}}}},plugins:{{legend:{{display:false}}}}}}
     }}),60);
   }});
 }}
@@ -1288,7 +1341,7 @@ function openDetail(ticker){{
       data:{{labels:['總分','獲利','成長','估值','財務','市場'],datasets:[{{data:s.radar,
         backgroundColor:col+',0.12)',borderColor:col+',0.85)',pointBackgroundColor:col+',1)',borderWidth:2,pointRadius:4}}]}},
       options:{{responsive:true,maintainAspectRatio:false,
-        scales:{{r:{{min:0,max:100,ticks:{{display:false}},grid:{{color:'rgba(255,255,255,.07)'}},pointLabels:{{color:'#8b949e',font:{{size:10}}}}}}}},
+        scales:{{r:{{min:0,max:100,ticks:{{display:false}},grid:{{color:'rgba(0,0,0,.07)'}},pointLabels:{{color:'#78716c',font:{{size:10}}}}}}}},
         plugins:{{legend:{{display:false}}}}}}
     }});
     const avg=k=>Math.round(stocks.reduce((a,x)=>a+(x[k]||0),0)/stocks.length);
@@ -1297,14 +1350,14 @@ function openDetail(ticker){{
         {{label:s.name,data:[s.fin,s.growth_s,s.valuation,s.financial,s.market],
           backgroundColor:col+',0.85)',borderColor:col+',1)',borderWidth:1,borderRadius:5}},
         {{label:'全部均值',data:[avg('fin'),avg('growth_s'),avg('valuation'),avg('financial'),avg('market')],
-          backgroundColor:'rgba(255,255,255,0.08)',borderColor:'rgba(255,255,255,0.3)',borderWidth:1,borderRadius:5}}]}},
+          backgroundColor:'rgba(0,0,0,0.06)',borderColor:'rgba(0,0,0,0.2)',borderWidth:1,borderRadius:5}}]}},
       options:{{responsive:true,maintainAspectRatio:false,
-        scales:{{y:{{min:0,max:22,grid:{{color:'rgba(255,255,255,.05)'}},ticks:{{color:'#8b949e',font:{{size:10}}}}}},
-                 x:{{grid:{{display:false}},ticks:{{color:'#8b949e',font:{{size:10}}}}}}}},
-        plugins:{{legend:{{labels:{{color:'#c9d1d9',font:{{size:11}},boxWidth:12,padding:16}}}}}}}}
+        scales:{{y:{{min:0,max:22,grid:{{color:'rgba(0,0,0,.05)'}},ticks:{{color:'#78716c',font:{{size:10}}}}}},
+                 x:{{grid:{{display:false}},ticks:{{color:'#78716c',font:{{size:10}}}}}}}},
+        plugins:{{legend:{{labels:{{color:'#1c1917',font:{{size:11}},boxWidth:12,padding:16}}}}}}}}
     }});
     // 各維度達成率 — horizontal bar chart with distinct colours per dimension
-    const dimColors=['#3fb950','#58a6ff','#d2991f','#bc8cff','#39c5cf'];
+    const dimColors=['#16a34a','#2563eb','#d97706','#7c3aed','#0891b2'];
     const dimMax=[20,20,15,15,10];
     const dimVals=[s.fin,s.growth_s,s.valuation,s.financial,s.market];
     const dimPct=dimVals.map((v,i)=>Math.round(v/dimMax[i]*100));
@@ -1314,9 +1367,9 @@ function openDetail(ticker){{
           backgroundColor:dimColors.map(c=>c+'bb'),
           borderColor:dimColors,borderWidth:1,borderRadius:6,barThickness:18}}]}},
       options:{{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-        scales:{{x:{{min:0,max:100,grid:{{color:'rgba(255,255,255,.05)'}},
-                    ticks:{{color:'#8b949e',font:{{size:10}},callback:v=>v+'%'}}}},
-                 y:{{grid:{{display:false}},ticks:{{color:'#c9d1d9',font:{{size:11}}}}}}}},
+        scales:{{x:{{min:0,max:100,grid:{{color:'rgba(0,0,0,.05)'}},
+                    ticks:{{color:'#78716c',font:{{size:10}},callback:v=>v+'%'}}}},
+                 y:{{grid:{{display:false}},ticks:{{color:'#1c1917',font:{{size:11}}}}}}}},
         plugins:{{legend:{{display:false}},
                   tooltip:{{callbacks:{{label:ctx=>`${{ctx.parsed.x}}%（${{dimVals[ctx.dataIndex]}} / ${{dimMax[ctx.dataIndex]}}）`}}}}}}}}
     }});
