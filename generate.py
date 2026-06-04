@@ -326,10 +326,29 @@ def type_badge(t):
     m={"growth":"成長股","value":"價值股","cyclical":"循環股",
        "turnaround":"轉型股","dividend":"存股型","general":"一般型"}
     return f'<span class="tbadge tb-{t}">{m.get(t,"—")}</span>'
+def cfg_act_btns(ticker, cur_type):
+    """Compact move & delete buttons for config.json (static) rows."""
+    s = 'padding:2px 7px;border-radius:5px;border:1px solid '
+    mv = lambda label, to, col: (
+        f'<button onclick="moveConfig(\'{ticker}\',\'{to}\')" '
+        f'style="{s}{col};background:transparent;color:{col};'
+        f'font-size:10px;cursor:pointer;white-space:nowrap;">{label}</button>')
+    rm = (f'<button onclick="removeConfig(\'{ticker}\')" title="移除" '
+          f'style="{s}var(--border);background:transparent;color:var(--muted);'
+          f'font-size:10px;cursor:pointer;">✕</button>')
+    if cur_type == "main":
+        btns = f'{mv("↓觀望","watch","var(--blue)")} {mv("↓學習","learning","var(--muted)")} {rm}'
+    elif cur_type == "watch":
+        btns = f'{mv("↑持股","main","var(--green)")} {mv("↓學習","learning","var(--muted)")} {rm}'
+    else:
+        btns = f'{mv("↑觀望","watch","var(--blue)")} {mv("↑持股","main","var(--green)")} {rm}'
+    return f'<div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;">{btns}</div>'
+
 def table_rows(lst):
     rows=""
     for s in lst:
-        rows+=f'''<tr>
+        acts = cfg_act_btns(s["ticker"], s.get("type","watch"))
+        rows+=f'''<tr data-cfg="{s["ticker"]}">
           <td><span class="cn">{s["name"]}</span><span class="tic">{s["ticker"]}</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               {type_badge(s.get("stock_type","general"))}
@@ -342,7 +361,7 @@ def table_rows(lst):
           <td>{ch_html(s["change"],s["changePct"])}</td>
           <td style="color:var(--muted);font-size:12px;">{s["mktCap"]}</td>
           <td>{tag_html(s["tag"])}</td>
-          <td><button class="drill" onclick="openDetail('{s["ticker"]}')">詳情 →</button></td>
+          <td><button class="drill" onclick="openDetail('{s["ticker"]}')">詳情 →</button>{acts}</td>
         </tr>'''
     return rows
 
@@ -390,7 +409,10 @@ main{{padding:20px 24px}}
   box-shadow:0 0 8px rgba(217,119,6,.25)}}
 .sw{{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
      overflow:hidden;margin-bottom:28px;overflow-x:auto}}
-.sw table{{width:100%;border-collapse:collapse;min-width:920px}}
+.sw table{{width:100%;border-collapse:collapse;min-width:860px}}
+.sw table td:last-child,.sw table th:last-child{{position:sticky;right:0;
+  background:var(--bg2);box-shadow:-4px 0 8px rgba(0,0,0,.06);z-index:1}}
+.sw table tr:hover td:last-child{{background:var(--bg3)}}
 .sw th{{background:#f0ebe3;color:var(--muted);font-size:10px;font-weight:600;
         text-transform:uppercase;letter-spacing:.4px;padding:9px 12px;
         text-align:left;border-bottom:1px solid var(--border)}}
@@ -811,6 +833,13 @@ async function _sbLoad(){{
       }}
       localWatch=merged;
       localStorage.setItem('tw_local_watch',JSON.stringify(localWatch));
+      // Rebuild cfgOverrides from Supabase (cross-device sync for config moves)
+      data.forEach(r=>{{
+        if(r.score_cache&&r.score_cache._cfg_override&&r.watch_table)
+          cfgOverrides[r.ticker]=r.watch_table;
+      }});
+      localStorage.setItem('tw_cfg_overrides',JSON.stringify(cfgOverrides));
+      applyCfgHides();
       renderAllLocalRows();
       // Re-run radar in case comparison tab was open before load completed
       if(document.getElementById('p-comparison').style.display!=='none')renderRadar();
@@ -1203,13 +1232,58 @@ function moveLocal(t,toTable){{
   saveLocal();renderAllLocalRows();
 }}
 
+// ── Config stock overrides (move / delete for server-generated rows) ──────
+let cfgOverrides=JSON.parse(localStorage.getItem('tw_cfg_overrides')||'{{}}');
+// {{ticker: 'main'|'watch'|'learning'|'deleted'}}
+
+function saveCfgOverrides(){{
+  localStorage.setItem('tw_cfg_overrides',JSON.stringify(cfgOverrides));
+  // Mirror to Supabase so overrides persist cross-device
+  const rows=Object.entries(cfgOverrides).map(([ticker,tbl])=>
+    ({{session_id:SESSION_ID,ticker,watch_table:tbl==='deleted'?'deleted':tbl,
+      score_cache:{{_cfg_override:true}}}}));
+  if(rows.length)sb.from('user_watchlist').upsert(rows,{{onConflict:'session_id,ticker'}})
+    .catch(e=>console.warn('[SB] cfg override save failed:',e));
+}}
+function applyCfgHides(){{
+  Object.entries(cfgOverrides).forEach(([ticker,tbl])=>{{
+    document.querySelectorAll(`tr[data-cfg="${{ticker}}"]`).forEach(r=>r.style.display='none');
+  }});
+}}
+function moveConfig(t,toTable){{
+  cfgOverrides[t]=toTable;
+  saveCfgOverrides();
+  // Copy stock data to localWatch so it shows up in the new table
+  const s=stocks.find(x=>x.ticker===t);
+  if(s){{
+    const entry={{...s,_table:toTable,t,ticker:t,_local:true,_cfg_override:true}};
+    const idx=localWatch.findIndex(x=>(x.ticker||x.t)===t);
+    if(idx>=0)localWatch[idx]=entry; else localWatch.push(entry);
+    saveLocal();
+  }}
+  applyCfgHides();
+  renderAllLocalRows();
+}}
+function removeConfig(t){{
+  cfgOverrides[t]='deleted';
+  saveCfgOverrides();
+  // Remove from localWatch if present
+  localWatch=localWatch.filter(x=>x.t!==t&&x.ticker!==t);
+  const si=stocks.findIndex(s=>s.ticker===t&&s._local);
+  if(si>=0)stocks.splice(si,1);
+  saveLocal();renderAllLocalRows();
+  applyCfgHides();
+  sb.from('user_watchlist').delete()
+    .eq('session_id',SESSION_ID).eq('ticker',t)
+    .then(()=>{{}}).catch(e=>console.warn('[SB] cfg delete failed:',e));
+}}
+
 function localRowHtml(u, tbl){{
   const tid=u.ticker||u.t;
-  const rmBtn=`<button onclick="removeLocal('${{tid}}')" style="padding:3px 8px;border-radius:5px;
-    border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">✕</button>`;
+  const bs='padding:2px 7px;border-radius:5px;font-size:10px;cursor:pointer;white-space:nowrap;background:transparent;border:1px solid ';
+  const rmBtn=`<button onclick="removeLocal('${{tid}}')" title="移除" style="${{bs}}var(--border);color:var(--muted);">✕</button>`;
   const mvBtn=(label,to,col)=>`<button onclick="moveLocal('${{tid}}','${{to}}')"
-    style="padding:3px 8px;border-radius:5px;border:1px solid ${{col}};background:transparent;
-    color:${{col}};font-size:11px;cursor:pointer;white-space:nowrap;">${{label}}</button>`;
+    style="${{bs}}${{col}};color:${{col}};">${{label}}</button>`;
   const emptyBar=(w,h,r)=>`<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
     <div style="width:${{w}}px;height:${{h}}px;border-radius:${{r}}px;background:#e5ded5;flex-shrink:0;opacity:.6;"></div>
     <span style="color:var(--muted);font-size:11px;">-</span></div>`;
@@ -1217,11 +1291,11 @@ function localRowHtml(u, tbl){{
   // Action buttons depend on which table the row lives in
   let acts;
   if(tbl==='main')
-    acts=`${{mvBtn('↓ 觀望','watch','var(--blue)')}} ${{mvBtn('↓ 學習','learning','var(--muted)')}} ${{rmBtn}}`;
+    acts=`${{mvBtn('↓觀望','watch','var(--blue)')}} ${{mvBtn('↓學習','learning','var(--muted)')}} ${{rmBtn}}`;
   else if(tbl==='watch')
-    acts=`${{mvBtn('↑ 持股','main','var(--green)')}} ${{mvBtn('↓ 學習','learning','var(--muted)')}} ${{rmBtn}}`;
+    acts=`${{mvBtn('↑持股','main','var(--green)')}} ${{mvBtn('↓學習','learning','var(--muted)')}} ${{rmBtn}}`;
   else
-    acts=`${{mvBtn('↑ 觀望','watch','var(--blue)')}} ${{mvBtn('↑ 持股','main','var(--green)')}} ${{rmBtn}}`;
+    acts=`${{mvBtn('↑觀望','watch','var(--blue)')}} ${{mvBtn('↑持股','main','var(--green)')}} ${{rmBtn}}`;
 
   if(u._loading) return`<tr>
     <td><span class="cn">${{u.n}}</span><span class="tic">${{u.t}}</span>
@@ -1269,7 +1343,7 @@ function localRowHtml(u, tbl){{
     <td>${{chHtml(u.change||0,u.changePct||0)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{u.mktCap||'—'}}</td>
     <td>${{tagHtml(u.tag)}}</td>
-    <td style="white-space:nowrap;">${{detailBtn}} ${{acts}}</td></tr>`;
+    <td>${{detailBtn}}<div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;">${{acts}}</div></td></tr>`;
 }}
 
 function renderAllLocalRows(){{
@@ -1541,6 +1615,7 @@ function openDetail(ticker){{
   }},80);
 }}
 // init local watch rows on page load, then sync from Supabase
+applyCfgHides();   // hide any config rows that were previously moved/deleted
 renderAllLocalRows();
 _sbLoad();
 </script>

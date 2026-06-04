@@ -40,7 +40,10 @@ main{padding:20px 24px}
   box-shadow:0 0 8px rgba(217,119,6,.25)}
 .sw{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
      overflow:hidden;margin-bottom:28px;overflow-x:auto}
-.sw table{width:100%;border-collapse:collapse;min-width:920px}
+.sw table{width:100%;border-collapse:collapse;min-width:860px}
+.sw table td:last-child,.sw table th:last-child{position:sticky;right:0;
+  background:var(--bg2);box-shadow:-4px 0 8px rgba(0,0,0,.06);z-index:1}
+.sw table tr:hover td:last-child{background:var(--bg3)}
 .sw th{background:#f0ebe3;color:var(--muted);font-size:10px;font-weight:600;
         text-transform:uppercase;letter-spacing:.4px;padding:9px 12px;
         text-align:left;border-bottom:1px solid var(--border)}
@@ -120,7 +123,7 @@ main{padding:20px 24px}
       onfocus="this.style.borderColor='var(--blue)'"
       onblur="this.style.borderColor='var(--border)'">
   </div>
-  <div style="color:var(--muted);font-size:11px;margin-left:14px;">更新：2026-06-05 02:35 TST</div>
+  <div style="color:var(--muted);font-size:11px;margin-left:14px;">更新：2026-06-05 02:42 TST</div>
 </nav>
 <main>
 <div id="p-overview">
@@ -153,7 +156,7 @@ main{padding:20px 24px}
   <div class="sw"><table>
     <thead><tr><th>代號／名稱</th><th>AI總分</th><th>獲利品質</th><th>成長動能</th>
       <th>估值</th><th>財務</th><th>市場面</th><th>現價</th><th>漲跌</th><th>市值</th><th>建議</th><th></th></tr></thead>
-    <tbody id="tb-main"><tr>
+    <tbody id="tb-main"><tr data-cfg="2344">
           <td><span class="cn">華邦電子</span><span class="tic">2344</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-cyclical">循環股</span>
@@ -166,8 +169,8 @@ main{padding:20px 24px}
           <td><span class="ch-pos">+2.00 (+1.13%)</span></td>
           <td style="color:var(--muted);font-size:12px;">8078億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fef3c7;color:#d97706;font-size:11px;font-weight:600;">● 保留</span></td>
-          <td><button class="drill" onclick="openDetail('2344')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('2344')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2344','watch')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:10px;cursor:pointer;white-space:nowrap;">↓觀望</button> <button onclick="moveConfig('2344','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2344')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="2393">
           <td><span class="cn">億光電子</span><span class="tic">2393</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-dividend">存股型</span>
@@ -180,8 +183,8 @@ main{padding:20px 24px}
           <td><span class="ch-pos">+1.10 (+1.68%)</span></td>
           <td style="color:var(--muted);font-size:12px;">296億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('2393')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('2393')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2393','watch')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:10px;cursor:pointer;white-space:nowrap;">↓觀望</button> <button onclick="moveConfig('2393','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2393')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="2408">
           <td><span class="cn">南亞科技</span><span class="tic">2408</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-cyclical">循環股</span>
@@ -194,8 +197,8 @@ main{padding:20px 24px}
           <td><span class="ch-neg">-6.50 (-1.62%)</span></td>
           <td style="color:var(--muted);font-size:12px;">1.2兆</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#dbeafe;color:#2563eb;font-size:11px;font-weight:600;">● 觀望</span></td>
-          <td><button class="drill" onclick="openDetail('2408')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('2408')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2408','watch')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:10px;cursor:pointer;white-space:nowrap;">↓觀望</button> <button onclick="moveConfig('2408','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2408')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="2476">
           <td><span class="cn">鉅祥企業</span><span class="tic">2476</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-growth">成長股</span>
@@ -208,8 +211,8 @@ main{padding:20px 24px}
           <td><span class="ch-neg">-2.00 (-1.63%)</span></td>
           <td style="color:var(--muted);font-size:12px;">264億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#dcfce7;color:#16a34a;font-size:11px;font-weight:600;">● 買入</span></td>
-          <td><button class="drill" onclick="openDetail('2476')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('2476')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2476','watch')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:10px;cursor:pointer;white-space:nowrap;">↓觀望</button> <button onclick="moveConfig('2476','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2476')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="3078">
           <td><span class="cn">僑威科技</span><span class="tic">3078</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-growth">成長股</span>
@@ -222,8 +225,8 @@ main{padding:20px 24px}
           <td><span class="ch-pos">+0.00 (+0.00%)</span></td>
           <td style="color:var(--muted);font-size:12px;">—</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('3078')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('3078')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('3078','watch')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:10px;cursor:pointer;white-space:nowrap;">↓觀望</button> <button onclick="moveConfig('3078','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('3078')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="6205">
           <td><span class="cn">詮欣</span><span class="tic">6205</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-growth">成長股</span>
@@ -236,8 +239,8 @@ main{padding:20px 24px}
           <td><span class="ch-neg">-5.20 (-5.70%)</span></td>
           <td style="color:var(--muted);font-size:12px;">69億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fef3c7;color:#d97706;font-size:11px;font-weight:600;">● 保留</span></td>
-          <td><button class="drill" onclick="openDetail('6205')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('6205')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('6205','watch')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:10px;cursor:pointer;white-space:nowrap;">↓觀望</button> <button onclick="moveConfig('6205','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('6205')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="6558">
           <td><span class="cn">興能高</span><span class="tic">6558</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-turnaround">轉型股</span>
@@ -250,7 +253,7 @@ main{padding:20px 24px}
           <td><span class="ch-pos">+0.65 (+1.95%)</span></td>
           <td style="color:var(--muted);font-size:12px;">32億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('6558')">詳情 →</button></td>
+          <td><button class="drill" onclick="openDetail('6558')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('6558','watch')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-size:10px;cursor:pointer;white-space:nowrap;">↓觀望</button> <button onclick="moveConfig('6558','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('6558')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
         </tr></tbody>
     <tbody id="tb-main-local"></tbody>
   </table></div>
@@ -258,7 +261,7 @@ main{padding:20px 24px}
   <div class="sw"><table>
     <thead><tr><th>代號／名稱</th><th>AI總分</th><th>獲利品質</th><th>成長動能</th>
       <th>估值</th><th>財務</th><th>市場面</th><th>現價</th><th>漲跌</th><th>市值</th><th>建議</th><th></th></tr></thead>
-    <tbody id="tb-watch"><tr>
+    <tbody id="tb-watch"><tr data-cfg="2481">
           <td><span class="cn">強茂</span><span class="tic">2481</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-value">價值股</span>
@@ -271,8 +274,8 @@ main{padding:20px 24px}
           <td><span class="ch-pos">+0.50 (+0.31%)</span></td>
           <td style="color:var(--muted);font-size:12px;">609億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('2481')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('2481')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2481','main')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--green);background:transparent;color:var(--green);font-size:10px;cursor:pointer;white-space:nowrap;">↑持股</button> <button onclick="moveConfig('2481','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2481')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="3022">
           <td><span class="cn">威強電</span><span class="tic">3022</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-value">價值股</span>
@@ -285,8 +288,8 @@ main{padding:20px 24px}
           <td><span class="ch-neg">-1.10 (-1.43%)</span></td>
           <td style="color:var(--muted);font-size:12px;">134億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('3022')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('3022')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('3022','main')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--green);background:transparent;color:var(--green);font-size:10px;cursor:pointer;white-space:nowrap;">↑持股</button> <button onclick="moveConfig('3022','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('3022')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="2367">
           <td><span class="cn">燿華電子</span><span class="tic">2367</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-turnaround">轉型股</span>
@@ -299,8 +302,8 @@ main{padding:20px 24px}
           <td><span class="ch-neg">-3.20 (-4.91%)</span></td>
           <td style="color:var(--muted);font-size:12px;">438億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('2367')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('2367')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2367','main')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--green);background:transparent;color:var(--green);font-size:10px;cursor:pointer;white-space:nowrap;">↑持股</button> <button onclick="moveConfig('2367','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2367')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="8050">
           <td><span class="cn">廣積科技</span><span class="tic">8050</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-value">價值股</span>
@@ -313,8 +316,8 @@ main{padding:20px 24px}
           <td><span class="ch-pos">+0.00 (+0.00%)</span></td>
           <td style="color:var(--muted);font-size:12px;">—</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('8050')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('8050')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('8050','main')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--green);background:transparent;color:var(--green);font-size:10px;cursor:pointer;white-space:nowrap;">↑持股</button> <button onclick="moveConfig('8050','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('8050')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="2356">
           <td><span class="cn">英業達</span><span class="tic">2356</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-value">價值股</span>
@@ -327,8 +330,8 @@ main{padding:20px 24px}
           <td><span class="ch-neg">-7.60 (-8.90%)</span></td>
           <td style="color:var(--muted);font-size:12px;">2791億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600;">● 迴避</span></td>
-          <td><button class="drill" onclick="openDetail('2356')">詳情 →</button></td>
-        </tr><tr>
+          <td><button class="drill" onclick="openDetail('2356')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2356','main')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--green);background:transparent;color:var(--green);font-size:10px;cursor:pointer;white-space:nowrap;">↑持股</button> <button onclick="moveConfig('2356','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2356')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
+        </tr><tr data-cfg="2369">
           <td><span class="cn">菱生精密</span><span class="tic">2369</span>
             <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
               <span class="tbadge tb-turnaround">轉型股</span>
@@ -341,7 +344,7 @@ main{padding:20px 24px}
           <td><span class="ch-neg">-0.25 (-0.70%)</span></td>
           <td style="color:var(--muted);font-size:12px;">132億</td>
           <td><span style="padding:3px 10px;border-radius:20px;background:#fef3c7;color:#d97706;font-size:11px;font-weight:600;">● 保留</span></td>
-          <td><button class="drill" onclick="openDetail('2369')">詳情 →</button></td>
+          <td><button class="drill" onclick="openDetail('2369')">詳情 →</button><div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;"><button onclick="moveConfig('2369','main')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--green);background:transparent;color:var(--green);font-size:10px;cursor:pointer;white-space:nowrap;">↑持股</button> <button onclick="moveConfig('2369','learning')" style="padding:2px 7px;border-radius:5px;border:1px solid var(--muted);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;white-space:nowrap;">↓學習</button> <button onclick="removeConfig('2369')" title="移除" style="padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;">✕</button></div></td>
         </tr></tbody>
     <tbody id="tb-watch-local"></tbody>
   </table></div>
@@ -643,6 +646,13 @@ async function _sbLoad(){
       }
       localWatch=merged;
       localStorage.setItem('tw_local_watch',JSON.stringify(localWatch));
+      // Rebuild cfgOverrides from Supabase (cross-device sync for config moves)
+      data.forEach(r=>{
+        if(r.score_cache&&r.score_cache._cfg_override&&r.watch_table)
+          cfgOverrides[r.ticker]=r.watch_table;
+      });
+      localStorage.setItem('tw_cfg_overrides',JSON.stringify(cfgOverrides));
+      applyCfgHides();
       renderAllLocalRows();
       // Re-run radar in case comparison tab was open before load completed
       if(document.getElementById('p-comparison').style.display!=='none')renderRadar();
@@ -1035,13 +1045,58 @@ function moveLocal(t,toTable){
   saveLocal();renderAllLocalRows();
 }
 
+// ── Config stock overrides (move / delete for server-generated rows) ──────
+let cfgOverrides=JSON.parse(localStorage.getItem('tw_cfg_overrides')||'{}');
+// {ticker: 'main'|'watch'|'learning'|'deleted'}
+
+function saveCfgOverrides(){
+  localStorage.setItem('tw_cfg_overrides',JSON.stringify(cfgOverrides));
+  // Mirror to Supabase so overrides persist cross-device
+  const rows=Object.entries(cfgOverrides).map(([ticker,tbl])=>
+    ({session_id:SESSION_ID,ticker,watch_table:tbl==='deleted'?'deleted':tbl,
+      score_cache:{_cfg_override:true}}));
+  if(rows.length)sb.from('user_watchlist').upsert(rows,{onConflict:'session_id,ticker'})
+    .catch(e=>console.warn('[SB] cfg override save failed:',e));
+}
+function applyCfgHides(){
+  Object.entries(cfgOverrides).forEach(([ticker,tbl])=>{
+    document.querySelectorAll(`tr[data-cfg="${ticker}"]`).forEach(r=>r.style.display='none');
+  });
+}
+function moveConfig(t,toTable){
+  cfgOverrides[t]=toTable;
+  saveCfgOverrides();
+  // Copy stock data to localWatch so it shows up in the new table
+  const s=stocks.find(x=>x.ticker===t);
+  if(s){
+    const entry={...s,_table:toTable,t,ticker:t,_local:true,_cfg_override:true};
+    const idx=localWatch.findIndex(x=>(x.ticker||x.t)===t);
+    if(idx>=0)localWatch[idx]=entry; else localWatch.push(entry);
+    saveLocal();
+  }
+  applyCfgHides();
+  renderAllLocalRows();
+}
+function removeConfig(t){
+  cfgOverrides[t]='deleted';
+  saveCfgOverrides();
+  // Remove from localWatch if present
+  localWatch=localWatch.filter(x=>x.t!==t&&x.ticker!==t);
+  const si=stocks.findIndex(s=>s.ticker===t&&s._local);
+  if(si>=0)stocks.splice(si,1);
+  saveLocal();renderAllLocalRows();
+  applyCfgHides();
+  sb.from('user_watchlist').delete()
+    .eq('session_id',SESSION_ID).eq('ticker',t)
+    .then(()=>{}).catch(e=>console.warn('[SB] cfg delete failed:',e));
+}
+
 function localRowHtml(u, tbl){
   const tid=u.ticker||u.t;
-  const rmBtn=`<button onclick="removeLocal('${tid}')" style="padding:3px 8px;border-radius:5px;
-    border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;">✕</button>`;
+  const bs='padding:2px 7px;border-radius:5px;font-size:10px;cursor:pointer;white-space:nowrap;background:transparent;border:1px solid ';
+  const rmBtn=`<button onclick="removeLocal('${tid}')" title="移除" style="${bs}var(--border);color:var(--muted);">✕</button>`;
   const mvBtn=(label,to,col)=>`<button onclick="moveLocal('${tid}','${to}')"
-    style="padding:3px 8px;border-radius:5px;border:1px solid ${col};background:transparent;
-    color:${col};font-size:11px;cursor:pointer;white-space:nowrap;">${label}</button>`;
+    style="${bs}${col};color:${col};">${label}</button>`;
   const emptyBar=(w,h,r)=>`<div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
     <div style="width:${w}px;height:${h}px;border-radius:${r}px;background:#e5ded5;flex-shrink:0;opacity:.6;"></div>
     <span style="color:var(--muted);font-size:11px;">-</span></div>`;
@@ -1049,11 +1104,11 @@ function localRowHtml(u, tbl){
   // Action buttons depend on which table the row lives in
   let acts;
   if(tbl==='main')
-    acts=`${mvBtn('↓ 觀望','watch','var(--blue)')} ${mvBtn('↓ 學習','learning','var(--muted)')} ${rmBtn}`;
+    acts=`${mvBtn('↓觀望','watch','var(--blue)')} ${mvBtn('↓學習','learning','var(--muted)')} ${rmBtn}`;
   else if(tbl==='watch')
-    acts=`${mvBtn('↑ 持股','main','var(--green)')} ${mvBtn('↓ 學習','learning','var(--muted)')} ${rmBtn}`;
+    acts=`${mvBtn('↑持股','main','var(--green)')} ${mvBtn('↓學習','learning','var(--muted)')} ${rmBtn}`;
   else
-    acts=`${mvBtn('↑ 觀望','watch','var(--blue)')} ${mvBtn('↑ 持股','main','var(--green)')} ${rmBtn}`;
+    acts=`${mvBtn('↑觀望','watch','var(--blue)')} ${mvBtn('↑持股','main','var(--green)')} ${rmBtn}`;
 
   if(u._loading) return`<tr>
     <td><span class="cn">${u.n}</span><span class="tic">${u.t}</span>
@@ -1101,7 +1156,7 @@ function localRowHtml(u, tbl){
     <td>${chHtml(u.change||0,u.changePct||0)}</td>
     <td style="color:var(--muted);font-size:12px;">${u.mktCap||'—'}</td>
     <td>${tagHtml(u.tag)}</td>
-    <td style="white-space:nowrap;">${detailBtn} ${acts}</td></tr>`;
+    <td>${detailBtn}<div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;">${acts}</div></td></tr>`;
 }
 
 function renderAllLocalRows(){
@@ -1373,6 +1428,7 @@ function openDetail(ticker){
   },80);
 }
 // init local watch rows on page load, then sync from Supabase
+applyCfgHides();   // hide any config rows that were previously moved/deleted
 renderAllLocalRows();
 _sbLoad();
 </script>
