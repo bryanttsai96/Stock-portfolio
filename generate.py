@@ -1295,15 +1295,14 @@ function renderAllLocalRows(){{
     :`<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">
        暫無學習股 — 點擊「＋ 新增學習股」開始探索</td></tr>`;
 
-  // Register scored local stocks in stocks[] so openDetail() works
-  localWatch.filter(u=>u.ok&&u.ticker).forEach(u=>{{
-    if(!stocks.find(s=>s.ticker===u.ticker))
-      stocks.push({{...u,type:u._table||'learning',_local:true}});
-    else{{
-      // Update existing entry with fresh data (e.g. after re-fetch)
-      const idx=stocks.findIndex(s=>s.ticker===u.ticker);
-      if(idx>=0&&stocks[idx]._local)stocks[idx]={{...u,type:u._table||'learning',_local:true}};
-    }}
+  // Register all local watch stocks in stocks[] so openDetail() + radar work
+  // Include ok:false/undefined entries too so they show up in the radar grid
+  localWatch.filter(u=>u.ticker||u.t).forEach(u=>{{
+    const tid=u.ticker||u.t;
+    const merged={{...u,ticker:tid,type:u._table||'learning',_local:true}};
+    const idx=stocks.findIndex(s=>s.ticker===tid);
+    if(idx<0) stocks.push(merged);
+    else if(stocks[idx]._local) stocks[idx]=merged; // refresh with latest data
   }});
   // If comparison tab visible, render any new stocks added since last render
   if(document.getElementById('p-comparison')&&document.getElementById('p-comparison').style.display!=='none')
@@ -1312,11 +1311,10 @@ function renderAllLocalRows(){{
 const radarRendered=new Set();
 function renderRadar(){{
   // Incremental: only add cards for stocks not yet rendered
-  let newMain=0,newWatch=0,newLearn=0;
   stocks.forEach(s=>{{
     if(radarRendered.has(s.ticker))return;
-    // Skip stocks without valid radar data
-    if(!s.radar||!Array.isArray(s.radar)||s.radar.every(v=>!v))return;
+    // Must have at minimum a ticker; skip truly empty placeholder rows
+    if(!s.ticker||(!s.ai&&!s.name))return;
     radarRendered.add(s.ticker);
     const col=COL[s.stock_type||'general'];
     // Determine which section this stock belongs to
@@ -1325,15 +1323,23 @@ function renderRadar(){{
     const gridId=isMain?'radar-main':isLearn?'radar-learn':'radar-watch';
     const g=document.getElementById(gridId);
     if(!g)return;
-    if(isMain)newMain++; else if(isLearn)newLearn++; else newWatch++;
+    const hasRadar=s.radar&&Array.isArray(s.radar)&&s.radar.some(v=>v>0);
     const d=document.createElement('div');d.className='rc';
     d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-      <div><div style="font-size:13px;font-weight:600;">${{s.name}} <span style="color:var(--muted);font-size:11px;">${{s.ticker}}</span></div>
+      <div><div style="font-size:13px;font-weight:600;">${{s.name||s.ticker}} <span style="color:var(--muted);font-size:11px;">${{s.ticker}}</span></div>
       <div style="margin-top:3px;display:flex;gap:4px;">${{tBadge(s.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{s.sector||''}}</span></div></div>
-      <div style="text-align:right;"><div class="sn score-${{sc(s.ai)}}" style="font-size:20px;">${{s.ai}}</div>${{tagHtml(s.tag)}}</div>
-    </div><canvas id="rc-${{s.ticker}}" height="210"></canvas>`;
+      <div style="text-align:right;"><div class="sn score-${{sc(s.ai||0)}}" style="font-size:20px;">${{s.ai||'—'}}</div>${{tagHtml(s.tag||'—')}}</div>
+    </div>
+    ${{hasRadar
+      ?`<canvas id="rc-${{s.ticker}}" height="210"></canvas>`
+      :`<div style="height:210px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--muted);">
+          <div style="font-size:24px;">📊</div>
+          <div style="font-size:12px;">開啟詳情頁可載入雷達資料</div>
+          <button onclick="openDetail('${{s.ticker}}')" style="margin-top:4px;padding:5px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--blue);font-size:12px;cursor:pointer;">詳情 →</button>
+        </div>`
+    }}`;
     g.appendChild(d);
-    setTimeout(()=>{{
+    if(hasRadar)setTimeout(()=>{{
       const cvs=document.getElementById('rc-'+s.ticker);
       if(!cvs)return;
       new Chart(cvs,{{type:'radar',
