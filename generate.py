@@ -1337,8 +1337,9 @@ function localRowHtml(u, tbl){{
       <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">
         ${{tBadge(u.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{u.sector||u.s}}</span>
       </div></td>
-    <td>${{makeRingJS(u.ai,u.tag)}}</td><td>${{u.fin_bar}}</td><td>${{u.growth_bar}}</td>
-    <td>${{u.val_bar}}</td><td>${{u.financial_bar}}</td><td>${{u.market_bar}}</td>
+    <td>${{makeRingJS(u.ai,u.tag)}}</td>
+    <td>${{makeBarJS(u.fin||0,20)}}</td><td>${{makeBarJS(u.growth_s||0,20)}}</td>
+    <td>${{makeBarJS(u.valuation||0,15)}}</td><td>${{makeBarJS(u.financial||0,15)}}</td><td>${{makeBarJS(u.market||0,10)}}</td>
     <td style="font-weight:600;">NT$${{(u.price||0).toFixed(2)}}</td>
     <td>${{chHtml(u.change||0,u.changePct||0)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{u.mktCap||'—'}}</td>
