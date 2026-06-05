@@ -215,10 +215,20 @@ def make_bar(val, max_val):
     )
 
 def fetch_stock(cfg):
-    symbol=cfg["ticker"]+".TW"
+    # Try TWSE (.TW) first; OTC stocks (上櫃) use .TWO
+    tk=info=None
+    for suffix in (".TW", ".TWO"):
+        try:
+            _tk=yf.Ticker(cfg["ticker"]+suffix)
+            _info=_tk.info
+            if (_info.get("currentPrice") or _info.get("regularMarketPrice") or 0)>0:
+                tk,info=_tk,_info
+                break
+        except Exception:
+            continue
+    if info is None:   # both suffixes failed
+        raise ValueError(f"no price data for {cfg['ticker']} (.TW / .TWO)")
     try:
-        tk=yf.Ticker(symbol)
-        info=tk.info
         price=info.get("currentPrice") or info.get("regularMarketPrice") or 0
         prev =info.get("regularMarketPreviousClose") or price
         change=round(price-prev,2)
