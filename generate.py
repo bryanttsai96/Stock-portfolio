@@ -226,10 +226,14 @@ def fetch_stock(cfg):
                 break
         except Exception:
             continue
-    if info is None:   # both suffixes failed
-        raise ValueError(f"no price data for {cfg['ticker']} (.TW / .TWO)")
+    # If both suffixes returned data but price is still 0 (e.g. suspended/delisted),
+    # raise so the except block tags it with ok:False and a clear warning
+    if info is None:
+        raise ValueError(f"symbol not found: {cfg['ticker']} (tried .TW and .TWO)")
     try:
         price=info.get("currentPrice") or info.get("regularMarketPrice") or 0
+        if price==0:
+            raise ValueError(f"price returned 0 for {cfg['ticker']} — possibly suspended or delisted")
         prev =info.get("regularMarketPreviousClose") or price
         change=round(price-prev,2)
         chg_pct=round((change/prev*100) if prev else 0,2)
@@ -288,12 +292,13 @@ def fetch_stock(cfg):
             "ok":True,
         }
     except Exception as e:
-        print(f"  ⚠ {cfg['ticker']}: {e}")
+        print(f"  ⚠ FETCH FAILED {cfg['ticker']}: {e}")
         return {**cfg,"price":0,"change":0,"changePct":0,"mktCap":"—",
                 "pe":0,"pb":0,"roe":0,"eps":0,"div":0,"revGrowth":0,"grossMargin":0,"opMargin":0,
-                "ai":0,"tag":"—","fin":0,"growth_s":0,"valuation":0,"financial":0,"market":0,
+                "ai":0,"tag":"avoid","fin":0,"growth_s":0,"valuation":0,"financial":0,"market":0,
                 "risk":0,"typeAdj":0,"radar":[0]*6,
                 "price_dates":[],"price_closes":[],
+                "_no_price":True,
                 "ai_ring":make_ring(0,"avoid"),
                 "ai_bar":make_bar(0,100),"fin_bar":make_bar(0,20),"growth_bar":make_bar(0,20),
                 "val_bar":make_bar(0,15),"financial_bar":make_bar(0,15),"market_bar":make_bar(0,10),
@@ -744,7 +749,7 @@ function renderTbody(id,list){{
         <div style="margin-top:3px;display:flex;gap:4px;align-items:center;">${{tBadge(s.stock_type||'general')}}&nbsp;<span style="color:var(--muted);font-size:10px;">${{s.sector}}</span></div></td>
     <td>${{makeRingJS(s.ai,s.tag)}}</td><td>${{s.fin_bar}}</td><td>${{s.growth_bar}}</td>
     <td>${{s.val_bar}}</td><td>${{s.financial_bar}}</td><td>${{s.market_bar}}</td>
-    <td style="font-weight:600;">NT$${{s.price.toFixed(2)}}</td><td>${{chHtml(s.change,s.changePct)}}</td>
+    <td style="font-weight:600;">${{s._no_price?'<span style="color:var(--red);font-size:11px;">⚠ 無報價</span>':'NT$'+s.price.toFixed(2)}}</td><td>${{s._no_price?'—':chHtml(s.change,s.changePct)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{s.mktCap}}</td>
     <td>${{tagHtml(s.tag)}}</td><td><button class="drill" onclick="openDetail('${{s.ticker}}')">詳情 →</button></td>
   </tr>`).join('');
@@ -832,7 +837,10 @@ async function _sbLoad(){{
         const local=lsMap.get(r.ticker)||{{}};
         // Prefer local score if freshly scored (ok:true) and SB cache is empty or stale
         const sbCache=r.score_cache||{{}};
-        const cache=(local.ok&&!sbCache.ok)?{{...local}}:{{...sbCache}};
+        // Prefer local if: local is freshly scored (ok:true) AND
+        // Supabase cache is either unscored OR has a zero/stale price
+        const sbStale=!sbCache.ok||(sbCache.price===0&&!sbCache._cfg_override);
+        const cache=(local.ok&&sbStale)?{{...local}}:{{...sbCache}};
         return {{...cache,t:r.ticker,ticker:r.ticker,_table:r.watch_table}};
       }});
       // Include any localStorage items not yet in Supabase (race: just added)
@@ -1085,8 +1093,10 @@ async function addToWatch(t,n,s){{
     // --- Price & momentum from STOCK_DAY ---
     // fields: 日期,成交股數,成交金額,開盤價,最高價,最低價,收盤價,漲跌價差,成交筆數
     const lastRow=dayData.data?.[dayData.data.length-1];
-    if(!lastRow)throw new Error('no price data');
-    const price=parseFloat(lastRow[6].replace(/,/g,''))||0;
+    if(!lastRow||!lastRow[6])throw new Error('TWSE returned no price row — ticker may be OTC or delisted');
+    const rawPrice=parseFloat(lastRow[6].replace(/,/g,''));
+    if(!rawPrice||rawPrice<=0)throw new Error(`price parsed as ${{rawPrice}} for ${{t}} — check ticker`);
+    const price=rawPrice;
     const change=parseFloat(lastRow[7].replace(/[+,]/g,''))||0;
     const changePct=(price>0&&price!==change)?change/(price-change)*100:0;
     const allPrices=dayData.data.map(r=>parseFloat(r[6].replace(/,/g,''))||0).filter(v=>v>0);
@@ -1333,8 +1343,8 @@ function localRowHtml(u, tbl){{
         ${{metas.length?`<div style="margin-top:3px;color:var(--muted);font-size:10px;">${{metas.join(' · ')}}</div>`:''}}
       </td>
       ${{[emptyBar(68,6,3),emptyBar(50,4,2),emptyBar(50,4,2),emptyBar(50,4,2),emptyBar(50,4,2),emptyBar(50,4,2)].map(b=>`<td>${{b}}</td>`).join('')}}
-      <td style="font-weight:600;">${{u.price?'NT$'+u.price.toFixed(2):'-'}}</td>
-      <td>${{u.price?chHtml(u.change,u.changePct):'-'}}</td>
+      <td style="font-weight:600;">${{(u._no_price||!u.price)?'<span style="color:var(--red);font-size:11px;">⚠ 無報價</span>':'NT$'+u.price.toFixed(2)}}</td>
+      <td>${{(u._no_price||!u.price)?'—':chHtml(u.change,u.changePct)}}</td>
       <td style="color:var(--muted);font-size:12px;">-</td>
       <td>${{tagHtml('—')}}</td>
       <td style="white-space:nowrap;">${{acts}}</td></tr>`;
@@ -1350,8 +1360,8 @@ function localRowHtml(u, tbl){{
     <td>${{makeRingJS(u.ai,u.tag)}}</td>
     <td>${{makeBarJS(u.fin||0,20)}}</td><td>${{makeBarJS(u.growth_s||0,20)}}</td>
     <td>${{makeBarJS(u.valuation||0,15)}}</td><td>${{makeBarJS(u.financial||0,15)}}</td><td>${{makeBarJS(u.market||0,10)}}</td>
-    <td style="font-weight:600;">NT$${{(u.price||0).toFixed(2)}}</td>
-    <td>${{chHtml(u.change||0,u.changePct||0)}}</td>
+    <td style="font-weight:600;">${{(u._no_price||!u.price)?'<span style="color:var(--red);font-size:11px;">⚠ 無報價</span>':'NT$'+(u.price).toFixed(2)}}</td>
+    <td>${{(u._no_price||!u.price)?'—':chHtml(u.change||0,u.changePct||0)}}</td>
     <td style="color:var(--muted);font-size:12px;">${{u.mktCap||'—'}}</td>
     <td>${{tagHtml(u.tag)}}</td>
     <td>${{detailBtn}}<div style="display:flex;gap:3px;margin-top:4px;flex-wrap:wrap;">${{acts}}</div></td></tr>`;
@@ -1474,8 +1484,11 @@ function openDetail(ticker){{
         ${{typeLabel}} ${{tBadge(s.stock_type||'general')}} ${{tagHtml(s.tag)}}</div>
         <div style="color:var(--muted);font-size:12px;">${{s.sector}}</div></div>
       <div style="text-align:right;">
-        <div style="font-size:28px;font-weight:700;">NT$ ${{s.price.toFixed(2)}}</div>
-        <div style="font-size:13px;margin-top:3px;">${{chHtml(s.change,s.changePct)}}</div></div>
+        ${{s._no_price
+          ?'<div style="font-size:16px;font-weight:600;color:var(--red);">⚠ 無法取得報價</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">股票可能暫停交易或代碼錯誤</div>'
+          :'<div style="font-size:28px;font-weight:700;">NT$ '+s.price.toFixed(2)+'</div><div style="font-size:13px;margin-top:3px;">'+chHtml(s.change,s.changePct)+'</div>'
+        }}
+      </div>
     </div>
     <div class="mgrid">
       <div class="mc"><div class="ml">AI 總分</div><div class="mv score-${{sc(s.ai)}}" style="font-size:26px;">${{s.ai}}</div><div class="ms">${{grade}}級·${{gradeDesc}}</div></div>
