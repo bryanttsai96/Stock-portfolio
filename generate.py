@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Taiwan Stock AI Scoring Dashboard — v2.2
+Taiwan Stock AI Scoring Dashboard — v2.3
 Scoring: 獲利品質(20)+成長動能(20)+估值(15)+財務(15)+市場面(10)+風險修正(-10)+類型加成(+5)
 Total 0-100. ≥70=買入 | 58-69=觀望 | 45-57=保留 | <45=迴避
 """
-import json, sys, datetime
+import json, sys, datetime, math as _math
 from pathlib import Path
 try:
-    import yfinance as yf
+    import requests as _req
 except ImportError:
-    print("Run: pip3 install yfinance"); sys.exit(1)
+    print("Run: pip3 install requests"); sys.exit(1)
 
 config     = json.loads(Path("config.json").read_text())
 stocks_cfg = config["stocks"]
@@ -214,101 +214,228 @@ def make_bar(val, max_val):
         f'</div>'
     )
 
-def fetch_stock(cfg):
-    # Try TWSE (.TW) first; OTC stocks (上櫃) use .TWO
-    tk=info=None
-    for suffix in (".TW", ".TWO"):
-        try:
-            _tk=yf.Ticker(cfg["ticker"]+suffix)
-            _info=_tk.info
-            if (_info.get("currentPrice") or _info.get("regularMarketPrice") or 0)>0:
-                tk,info=_tk,_info
-                break
-        except Exception:
-            continue
-    # If both suffixes returned data but price is still 0 (e.g. suspended/delisted),
-    # raise so the except block tags it with ok:False and a clear warning
-    if info is None:
-        raise ValueError(f"symbol not found: {cfg['ticker']} (tried .TW and .TWO)")
+_FM = "https://api.finmindtrade.com/api/v4/data"
+
+def _fm(dataset, ticker, start):
+    """Call FinMind API; return list of data rows (empty on error)."""
     try:
-        price=info.get("currentPrice") or info.get("regularMarketPrice") or 0
-        if price==0:
-            raise ValueError(f"price returned 0 for {cfg['ticker']} — possibly suspended or delisted")
-        prev =info.get("regularMarketPreviousClose") or price
-        change=round(price-prev,2)
-        chg_pct=round((change/prev*100) if prev else 0,2)
-        mc=info.get("marketCap",0)
-        _dy=info.get("dividendYield") or 0
-        div=round(_dy if _dy>1 else _dy*100,2)
-        if   mc>=1e12: cap=f"{mc/1e12:.1f}兆"
-        elif mc>=1e8:  cap=f"{mc/1e8:.0f}億"
-        elif mc>=1e6:  cap=f"{mc/1e6:.0f}百萬"
-        else:           cap="—"
-        ai,tag,bd=score_stock(info,cfg)
-        # Fetch 6-month daily price history for the detail chart
-        try:
-            import math as _math
-            hist=tk.history(period="6mo")
-            if not hist.empty:
-                pairs=[(d.strftime("%m/%d"),round(float(c),2))
-                       for d,c in zip(hist.index,hist["Close"])
-                       if not _math.isnan(float(c)) and float(c)>0]
-                price_dates=[p[0] for p in pairs]
-                price_closes=[p[1] for p in pairs]
-            else:
-                price_dates=[]; price_closes=[]
-        except Exception:
-            price_dates=[]; price_closes=[]
+        r = _req.get(f"{_FM}?dataset={dataset}&data_id={ticker}&start_date={start}", timeout=20)
+        return r.json().get("data", [])
+    except Exception:
+        return []
+
+def _get_v(rows, typ, date):
+    """Find a single value from FinMind type/date keyed rows."""
+    r = next((x for x in rows if x.get("type") == typ and x.get("date") == date), None)
+    return float(r["value"]) if r else 0.0
+
+def _sf(v):
+    """Safe float: returns 0.0 for None, empty string, or '-' dashes."""
+    try:
+        return float(v) if v and str(v).strip() not in ("", "-", "—") else 0.0
+    except (ValueError, TypeError):
+        return 0.0
+
+def _dates(rows):
+    """Return unique dates from FinMind rows, newest first."""
+    return sorted({x["date"] for x in rows}, reverse=True)
+
+def _fetch_bwibbu():
+    """Pre-fetch TWSE BWIBBU_d (all stocks' PE/PB/yield) once per run."""
+    try:
+        r = _req.get(
+            "https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json",
+            timeout=15
+        )
+        return r.json().get("data", [])
+    except Exception:
+        return []
+
+def fetch_stock(cfg, bwibbu_rows):
+    t = cfg["ticker"]
+    today   = datetime.date.today()
+    start2y = (today - datetime.timedelta(days=730)).isoformat()
+    start6m = (today - datetime.timedelta(days=186)).isoformat()
+
+    try:
+        # ── 1. Price history (FinMind) — works for TWSE + OTC ─────────────────
+        ph_rows = _fm("TaiwanStockPrice", t, start6m)
+        if not ph_rows:
+            raise ValueError(f"FinMind returned no price data for {t}")
+
+        last      = ph_rows[-1]
+        price     = float(last["close"])
+        if price <= 0:
+            raise ValueError(f"price returned 0 for {t} — possibly suspended or delisted")
+
+        prev      = float(ph_rows[-2]["close"]) if len(ph_rows) >= 2 else price
+        change    = round(price - prev, 2)
+        chg_pct   = round(change / prev * 100 if prev else 0, 2)
+
+        closes    = [float(r["close"]) for r in ph_rows if float(r["close"]) > 0]
+        w52_hi    = max(closes) if closes else price
+        w52_lo    = min(closes) if closes else price
+        momo      = (price - closes[0]) / closes[0] if len(closes) > 1 and closes[0] > 0 else 0
+
+        vols      = [int(r.get("Trading_Volume") or 0) for r in ph_rows]
+        cur_vol   = vols[-1] if vols else 0
+        avg_vol   = sum(vols) / len(vols) if vols else 1
+
+        price_dates  = [r["date"][5:].replace("-", "/") for r in ph_rows if float(r["close"]) > 0]
+        price_closes = [round(float(r["close"]), 2)      for r in ph_rows if float(r["close"]) > 0]
+
+        # ── 2. Valuation: TWSE BWIBBU_d (pre-fetched) ─────────────────────────
+        # columns: 證券代號, 證券名稱, 收盤價, 殖利率(%), 股利年度, 本益比, 股價淨值比, 財報年/季
+        val_row  = next((r for r in bwibbu_rows if r[0] == t), None)
+        pe      = _sf(val_row[5]) if val_row else 0.0
+        pb      = _sf(val_row[6]) if val_row else 0.0
+        div_pct = _sf(val_row[3]) if val_row else 0.0  # already %
+
+        # ── 3. Income statement (FinMind) ──────────────────────────────────────
+        fs_rows  = _fm("TaiwanStockFinancialStatements", t, start2y)
+        fs_all   = _dates(fs_rows)
+        ann_fs   = [d for d in fs_all if "-12-" in d]
+        d0       = ann_fs[0] if ann_fs else (fs_all[0] if fs_all else None)
+        d1       = ann_fs[1] if len(ann_fs) > 1 else (fs_all[min(4, len(fs_all)-1)] if len(fs_all) > 1 else None)
+
+        rev0 = _get_v(fs_rows, "Revenue",           d0) if d0 else 0.0
+        rev1 = _get_v(fs_rows, "Revenue",           d1) if d1 else 0.0
+        gp0  = _get_v(fs_rows, "GrossProfit",       d0) if d0 else 0.0
+        oi0  = _get_v(fs_rows, "OperatingIncome",   d0) if d0 else 0.0
+        ni0  = _get_v(fs_rows, "IncomeAfterTaxes",  d0) if d0 else 0.0
+        eps0 = _get_v(fs_rows, "EPS",               d0) if d0 else 0.0
+        eps1 = _get_v(fs_rows, "EPS",               d1) if d1 else 0.0
+
+        # ── 4. Balance sheet (FinMind) ─────────────────────────────────────────
+        bs_rows  = _fm("TaiwanStockBalanceSheet", t, start2y)
+        bs_all   = _dates(bs_rows)
+        bs_d     = bs_all[0] if bs_all else None
+
+        tl_eq = _get_v(bs_rows, "TotalLiabilitiesEquity",    bs_d) if bs_d else 0.0
+        eq    = _get_v(bs_rows, "Equity",                    bs_d) if bs_d else 0.0
+        ca    = _get_v(bs_rows, "CurrentAssets",             bs_d) if bs_d else 0.0
+        cl    = _get_v(bs_rows, "CurrentLiabilities",        bs_d) if bs_d else 0.0
+        cash  = _get_v(bs_rows, "CashAndCashEquivalents",    bs_d) if bs_d else 0.0
+        t_liab = tl_eq - eq
+
+        # ── 5. Cash flow (FinMind) ─────────────────────────────────────────────
+        cf_rows = _fm("TaiwanStockCashFlowsStatement", t, start2y)
+        cf_all  = _dates(cf_rows)
+        cf_d    = cf_all[0] if cf_all else None
+        op_cf   = (_get_v(cf_rows, "CashFlowsFromOperatingActivities",    cf_d) or
+                   _get_v(cf_rows, "NetCashInflowFromOperatingActivities", cf_d)) if cf_d else 0.0
+
+        # ── Computed ratios ────────────────────────────────────────────────────
+        gross_m = gp0 / rev0 if rev0 else 0.0
+        op_m    = oi0 / rev0 if rev0 else 0.0
+        net_m   = ni0 / rev0 if rev0 else 0.0
+        roe     = ni0 / eq   if eq   else 0.0
+        rev_gr  = (rev0 - rev1) / rev1 if rev1 else 0.0
+        earn_gr = (eps0 - eps1) / abs(eps1) if eps1 != 0 else 0.0
+        debt_eq = t_liab / eq * 100 if eq else 0.0
+        curr_r  = ca / cl if cl else 0.0
+
+        # Market cap (FinMind balance-sheet units match fmtCap in JS)
+        mc  = pb * eq if pb and eq else 0
+        if   mc >= 1e12: cap = f"{mc/1e12:.1f}兆"
+        elif mc >= 1e8:  cap = f"{mc/1e8:.0f}億"
+        elif mc >= 1e4:  cap = f"{mc/1e4:.0f}萬"
+        else:             cap = "—"
+
+        # ── Assemble info dict (same field names as before) ────────────────────
+        info = {
+            "returnOnEquity":    roe,        # fraction
+            "grossMargins":      gross_m,    # fraction
+            "operatingMargins":  op_m,       # fraction
+            "profitMargins":     net_m,      # fraction
+            "revenueGrowth":     rev_gr,     # fraction
+            "earningsGrowth":    earn_gr,    # fraction
+            "trailingPE":        pe,
+            "forwardPE":         0,
+            "priceToBook":       pb,
+            "pegRatio":          0,          # score_stock() calculates from pe/rev_gr
+            "debtToEquity":      debt_eq,    # percentage (50 = 50%)
+            "currentRatio":      curr_r,
+            "freeCashflow":      op_cf,
+            "operatingCashflow": op_cf,
+            "totalCash":         cash,
+            "totalDebt":         t_liab,
+            "beta":              1.0,
+            "52WeekChange":      momo,       # fraction
+            "SandP52WeekChange": 0,
+            "volume":            cur_vol,
+            "averageVolume":     avg_vol,
+            "currentPrice":      price,
+            "regularMarketPrice": price,
+            "regularMarketPreviousClose": prev,
+            "fiftyTwoWeekHigh":  w52_hi,
+            "fiftyTwoWeekLow":   w52_lo,
+            "dividendYield":     div_pct / 100,  # BWIBBU_d gives %; score_stock expects fraction
+            "trailingEps":       eps0,
+        }
+
+        ai, tag, bd = score_stock(info, cfg)
+
         return {
             **cfg,
-            "price":round(price,2),"change":change,"changePct":chg_pct,"mktCap":cap,
-            "pe":round(info.get("trailingPE") or 0,1),
-            "pb":round(info.get("priceToBook") or 0,2),
-            "roe":round((info.get("returnOnEquity") or 0)*100,1),
-            "eps":round(info.get("trailingEps") or 0,2),
-            "div":div,
-            "revGrowth":round((info.get("revenueGrowth") or 0)*100,1),
-            "grossMargin":round((info.get("grossMargins") or 0)*100,1),
-            "opMargin":round((info.get("operatingMargins") or 0)*100,1),
-            "ai":ai,"tag":tag,
-            "fin":bd["profit"],"growth_s":bd["growth"],"valuation":bd["valuation"],
-            "financial":bd["financial"],"market":bd["market"],
-            "risk":bd["risk"],"typeAdj":bd["type_adj"],
-            "radar":[ai,
-                     round(bd["profit"]/20*100),
-                     round(bd["growth"]/20*100),
-                     round(bd["valuation"]/15*100),
-                     round(bd["financial"]/15*100),
-                     round(bd["market"]/10*100)],
-            "price_dates":price_dates,
-            "price_closes":price_closes,
-            "ai_ring":    make_ring(ai, tag),
-            "ai_bar":     make_bar(ai,               100),
-            "fin_bar":    make_bar(bd["profit"],       20),
-            "growth_bar": make_bar(bd["growth"],       20),
-            "val_bar":    make_bar(bd["valuation"],    15),
-            "financial_bar": make_bar(bd["financial"], 15),
-            "market_bar": make_bar(bd["market"],       10),
-            "ok":True,
+            "price":     round(price, 2),
+            "change":    change,
+            "changePct": chg_pct,
+            "mktCap":    cap,
+            "pe":        round(pe, 1),
+            "pb":        round(pb, 2),
+            "roe":       round(roe * 100, 1),
+            "eps":       round(eps0, 2),
+            "div":       round(div_pct, 2),
+            "revGrowth":    round(rev_gr * 100, 1),
+            "grossMargin":  round(gross_m * 100, 1),
+            "opMargin":     round(op_m * 100, 1),
+            "ai": ai, "tag": tag,
+            "fin": bd["profit"], "growth_s": bd["growth"],
+            "valuation": bd["valuation"], "financial": bd["financial"],
+            "market": bd["market"], "risk": bd["risk"], "typeAdj": bd["type_adj"],
+            "radar": [ai,
+                      round(bd["profit"]   / 20 * 100),
+                      round(bd["growth"]   / 20 * 100),
+                      round(bd["valuation"]/ 15 * 100),
+                      round(bd["financial"]/ 15 * 100),
+                      round(bd["market"]   / 10 * 100)],
+            "price_dates":  price_dates,
+            "price_closes": price_closes,
+            "ai_ring":       make_ring(ai, tag),
+            "ai_bar":        make_bar(ai,               100),
+            "fin_bar":       make_bar(bd["profit"],       20),
+            "growth_bar":    make_bar(bd["growth"],       20),
+            "val_bar":       make_bar(bd["valuation"],    15),
+            "financial_bar": make_bar(bd["financial"],    15),
+            "market_bar":    make_bar(bd["market"],       10),
+            "ok": True,
         }
+
     except Exception as e:
         print(f"  ⚠ FETCH FAILED {cfg['ticker']}: {e}")
-        return {**cfg,"price":0,"change":0,"changePct":0,"mktCap":"—",
-                "pe":0,"pb":0,"roe":0,"eps":0,"div":0,"revGrowth":0,"grossMargin":0,"opMargin":0,
-                "ai":0,"tag":"avoid","fin":0,"growth_s":0,"valuation":0,"financial":0,"market":0,
-                "risk":0,"typeAdj":0,"radar":[0]*6,
-                "price_dates":[],"price_closes":[],
-                "_no_price":True,
-                "ai_ring":make_ring(0,"avoid"),
-                "ai_bar":make_bar(0,100),"fin_bar":make_bar(0,20),"growth_bar":make_bar(0,20),
-                "val_bar":make_bar(0,15),"financial_bar":make_bar(0,15),"market_bar":make_bar(0,10),
-                "ok":False}
+        return {**cfg, "price": 0, "change": 0, "changePct": 0, "mktCap": "—",
+                "pe": 0, "pb": 0, "roe": 0, "eps": 0, "div": 0,
+                "revGrowth": 0, "grossMargin": 0, "opMargin": 0,
+                "ai": 0, "tag": "avoid",
+                "fin": 0, "growth_s": 0, "valuation": 0, "financial": 0,
+                "market": 0, "risk": 0, "typeAdj": 0, "radar": [0]*6,
+                "price_dates": [], "price_closes": [],
+                "_no_price": True,
+                "ai_ring": make_ring(0, "avoid"),
+                "ai_bar":        make_bar(0, 100), "fin_bar":    make_bar(0, 20),
+                "growth_bar":    make_bar(0, 20),  "val_bar":    make_bar(0, 15),
+                "financial_bar": make_bar(0, 15),  "market_bar": make_bar(0, 10),
+                "ok": False}
 
 print("Fetching stock data...")
+print("  → Pre-fetching TWSE BWIBBU_d (PE/PB/yield)...")
+_bwibbu = _fetch_bwibbu()
+print(f"    {len(_bwibbu)} rows loaded" if _bwibbu else "    ⚠ BWIBBU_d unavailable — PE/PB/yield will be 0")
 stocks=[]
 for cfg in stocks_cfg:
     print(f"  {cfg['ticker']} {cfg['name']}...")
-    stocks.append(fetch_stock(cfg))
+    stocks.append(fetch_stock(cfg, _bwibbu))
 
 main_s  =[s for s in stocks if s["type"]=="main"]
 watch_s =[s for s in stocks if s["type"]=="watch"]
@@ -1530,7 +1657,7 @@ function openDetail(ticker){{
   setTimeout(()=>{{
     // ── Price history chart ──────────────────────────────────────────────
     if(s.price_dates&&s.price_dates.length>10){{
-      // Filter out any NaN/null values (yfinance occasionally returns them for partial days)
+      // Filter out any NaN/null values (FinMind occasionally has gaps for partial days)
       const rawDates=s.price_dates||[], rawCloses=s.price_closes||[];
       const pd=[],pc=[];
       for(let i=0;i<rawDates.length;i++){{
