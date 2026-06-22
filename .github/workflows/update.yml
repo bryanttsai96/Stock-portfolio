@@ -2,7 +2,7 @@ name: Daily Stock Update
 
 on:
   schedule:
-    # 18:05 Taiwan time = 10:05 UTC (after TWSE close at 13:30 + Yahoo delay)
+    # 18:05 Taiwan time = 10:05 UTC (after TWSE close at 13:30)
     - cron: '5 10 * * 1-5'
   workflow_dispatch:   # allow manual trigger from GitHub UI
 
@@ -15,6 +15,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Persist token so git push works regardless of Node.js version
+          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,16 +28,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Pull latest before generating
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+
       - name: Generate dashboard
         run: python generate.py
 
       - name: Commit and push index.html
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Pull latest (with rebase) before committing so we never conflict
-          # with manual pushes that updated generate.py or other files
-          git pull --rebase origin main
           git add index.html
           git diff --cached --quiet || git commit -m "chore: daily stock update $(date -u +'%Y-%m-%d')"
-          git push
+          # Use token-authenticated URL to bypass credential helper issues
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
